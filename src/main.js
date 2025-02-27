@@ -27,6 +27,12 @@ class Game {
         // Debug mode
         this.debugMode = false;
         
+        // Exploration tracking
+        this.discoveredSectors = new Set();
+        this.discoveredPlanets = new Set();
+        this.discoveredAnomalies = new Set();
+        this.explorationScore = 0;
+        
         // Performance monitoring
         this.fps = 0;
         this.frameCount = 0;
@@ -278,7 +284,7 @@ class Game {
         this.lodManager = new LODManager(this.camera, 10000);
         console.log("LOD manager initialized");
         
-        // 3. Initialize combat system
+        // 3. Initialize combat system (less emphasis, but still available)
         this.combatSystem = new CombatSystem(this.scene, this.physicsSystem);
         console.log("Combat system initialized");
         
@@ -339,9 +345,9 @@ class Game {
             this.uiManager = new UIManager(this.spacecraft, this.gameWorld);
             console.log("UI manager initialized");
             
-            // Add mothership interaction notification
+            // Add exploration-focused notification
             if (this.uiManager.showNotification) {
-                this.uiManager.showNotification('PRESS L TO LAUNCH FROM MOTHERSHIP', 'info');
+                this.uiManager.showNotification('WELCOME EXPLORER - PRESS L TO LAUNCH AND BEGIN YOUR JOURNEY', 'info');
             }
         } catch (error) {
             console.error("Error initializing UI manager:", error);
@@ -383,11 +389,21 @@ class Game {
             this.toggleDebugMode();
         });
         
+        // Register scan key (S) for exploration
+        this.inputManager.registerKeyBinding('s', () => {
+            this.scanSurroundings();
+        });
+        
+        // Register map key (M)
+        this.inputManager.registerKeyBinding('m', () => {
+            this.toggleGalacticMap();
+        });
+        
         console.log("Input bindings initialized");
         
         // Connect systems together
         
-        // Combat system callbacks
+        // Combat system callbacks (reduced emphasis)
         this.spacecraft.onWeaponFired = (projectile) => {
             if (this.physicsSystem) {
                 this.physicsSystem.addProjectile(projectile);
@@ -396,7 +412,7 @@ class Game {
             }
         };
         
-        // Game world callbacks
+        // Game world callbacks - focus on exploration
         this.gameWorld.onEnemyDestroyed = (enemyType, position) => {
             // Add credit rewards based on enemy type
             let creditReward = 0;
@@ -425,6 +441,47 @@ class Game {
                 this.combatSystem.createExplosion(position, enemyType === 'asteroid' ? 10 : 20);
             }
         };
+        
+        // Add exploration callbacks
+        if (this.gameWorld) {
+            // Track sector discovery
+            this.gameWorld.onSectorDiscovered = (sectorInfo) => {
+                if (!this.discoveredSectors.has(sectorInfo.name)) {
+                    this.discoveredSectors.add(sectorInfo.name);
+                    this.explorationScore += 100;
+                    
+                    if (this.uiManager && this.uiManager.showNotification) {
+                        this.uiManager.showNotification(`NEW SECTOR DISCOVERED: ${sectorInfo.name}`, 'success');
+                    }
+                }
+            };
+            
+            // Track planet discovery
+            this.gameWorld.onPlanetDiscovered = (planetInfo) => {
+                const planetId = `${planetInfo.name}-${planetInfo.position.x}-${planetInfo.position.y}-${planetInfo.position.z}`;
+                if (!this.discoveredPlanets.has(planetId)) {
+                    this.discoveredPlanets.add(planetId);
+                    this.explorationScore += 250;
+                    
+                    if (this.uiManager && this.uiManager.showNotification) {
+                        this.uiManager.showNotification(`NEW PLANET DISCOVERED: ${planetInfo.name}`, 'success');
+                    }
+                }
+            };
+            
+            // Track anomaly discovery
+            this.gameWorld.onAnomalyDiscovered = (anomalyInfo) => {
+                const anomalyId = `${anomalyInfo.type}-${anomalyInfo.position.x}-${anomalyInfo.position.y}-${anomalyInfo.position.z}`;
+                if (!this.discoveredAnomalies.has(anomalyId)) {
+                    this.discoveredAnomalies.add(anomalyId);
+                    this.explorationScore += 500;
+                    
+                    if (this.uiManager && this.uiManager.showNotification) {
+                        this.uiManager.showNotification(`ANOMALY DISCOVERED: ${anomalyInfo.type}`, 'success');
+                    }
+                }
+            };
+        }
         
         // UI callbacks
         this.uiManager.onPlayerDeath = () => {
@@ -466,7 +523,7 @@ class Game {
         return false;
     }
     
-    // Add this method to launch from mothership
+    // Update the launch method to be more exploration-focused
     launchFromMothership() {
         try {
             // Find the nearest mothership
@@ -486,9 +543,9 @@ class Game {
                 console.log('Camera reset to:', this.camera.position);
                 console.log('Camera looking at: forward direction');
                 
-                // Show launch notification
+                // Show launch notification with exploration focus
                 if (this.uiManager && this.uiManager.showNotification) {
-                    this.uiManager.showNotification('SPACECRAFT LAUNCHED - GOOD LUCK COMMANDER!', 'success');
+                    this.uiManager.showNotification('SPACECRAFT LAUNCHED - PRESS S TO SCAN SURROUNDINGS, M FOR MAP', 'success');
                 }
                 
                 return true;
@@ -759,6 +816,9 @@ class Game {
             
             // Complete loading
             this.updateLoadingProgress(100);
+            
+            // Force remove any remaining loading screens
+            this.forceRemoveAllLoadingScreens();
             
             console.log("Game initialized successfully");
         } catch (error) {
@@ -1035,6 +1095,116 @@ class Game {
             object.children.forEach(child => {
                 this.logSceneHierarchy(child, indent + 1);
             });
+        }
+    }
+    
+    // Add a method to forcibly remove all loading screens
+    forceRemoveAllLoadingScreens() {
+        console.log("Forcibly removing all loading screens");
+        
+        // Try to remove by ID
+        const loadingScreens = [
+            document.getElementById('loading'),
+            document.getElementById('loading-screen')
+        ];
+        
+        // Also try to find by selector
+        document.querySelectorAll('[id*="loading"]').forEach(el => {
+            if (!loadingScreens.includes(el)) {
+                loadingScreens.push(el);
+            }
+        });
+        
+        // Remove each loading screen
+        loadingScreens.forEach(screen => {
+            if (screen) {
+                console.log(`Removing loading screen: ${screen.id}`);
+                screen.style.opacity = '0';
+                screen.style.display = 'none';
+                
+                if (screen.parentNode) {
+                    screen.parentNode.removeChild(screen);
+                }
+            }
+        });
+        
+        // Also try to find any element with "Loading game assets" text
+        document.querySelectorAll('*').forEach(el => {
+            if (el.textContent && el.textContent.includes('Loading game assets')) {
+                console.log('Found element with loading text:', el);
+                el.style.display = 'none';
+                if (el.parentNode) {
+                    el.parentNode.removeChild(el);
+                }
+            }
+        });
+    }
+    
+    // Add exploration-focused methods
+    
+    // Scan surroundings for points of interest
+    scanSurroundings() {
+        if (!this.spacecraft || !this.gameWorld) return;
+        
+        // Show scanning effect
+        if (this.uiManager && this.uiManager.showNotification) {
+            this.uiManager.showNotification('SCANNING SURROUNDINGS...', 'info');
+        }
+        
+        // Simulate scanning delay
+        setTimeout(() => {
+            // Get nearby objects from game world
+            const nearbyObjects = this.gameWorld.getNearbyObjects(this.spacecraft.position, 1000);
+            
+            if (nearbyObjects && nearbyObjects.length > 0) {
+                // Filter and categorize objects
+                const planets = nearbyObjects.filter(obj => obj.type === 'planet');
+                const anomalies = nearbyObjects.filter(obj => obj.type === 'anomaly');
+                const ships = nearbyObjects.filter(obj => obj.type === 'ship' || obj.type === 'alien');
+                const resources = nearbyObjects.filter(obj => obj.type === 'resource' || obj.type === 'asteroid');
+                
+                // Report findings
+                let message = 'SCAN COMPLETE: ';
+                if (planets.length > 0) message += `${planets.length} planets, `;
+                if (anomalies.length > 0) message += `${anomalies.length} anomalies, `;
+                if (ships.length > 0) message += `${ships.length} ships, `;
+                if (resources.length > 0) message += `${resources.length} resources, `;
+                
+                message = message.endsWith(', ') ? message.slice(0, -2) : message + 'Nothing found';
+                
+                if (this.uiManager && this.uiManager.showNotification) {
+                    this.uiManager.showNotification(message, 'success');
+                }
+                
+                // Update UI with scan results
+                if (this.uiManager && this.uiManager.updateScanResults) {
+                    this.uiManager.updateScanResults(nearbyObjects);
+                }
+            } else {
+                if (this.uiManager && this.uiManager.showNotification) {
+                    this.uiManager.showNotification('SCAN COMPLETE: No objects detected', 'info');
+                }
+            }
+        }, 1500);
+    }
+    
+    // Toggle galactic map
+    toggleGalacticMap() {
+        if (!this.uiManager) return;
+        
+        if (this.uiManager.isMapOpen) {
+            this.uiManager.closeGalacticMap();
+        } else {
+            // Prepare map data
+            const mapData = {
+                currentPosition: this.spacecraft ? this.spacecraft.position : new THREE.Vector3(),
+                discoveredSectors: Array.from(this.discoveredSectors),
+                discoveredPlanets: Array.from(this.discoveredPlanets),
+                discoveredAnomalies: Array.from(this.discoveredAnomalies),
+                explorationScore: this.explorationScore
+            };
+            
+            this.uiManager.openGalacticMap(mapData);
         }
     }
 }
