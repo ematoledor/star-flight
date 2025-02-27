@@ -18,6 +18,10 @@ class Game {
         this.initStartTime = 0;
         this.initWarningShown = false;
         
+        // CRITICAL FIX: Add initialization timeout tracking
+        this.initTimeoutId = null;
+        this.emergencyInitialized = false;
+        
         // Exploration tracking
         this.discoveredSectors = new Set();
         this.discoveredPlanets = new Set();
@@ -78,9 +82,15 @@ class Game {
             // Set initialized flag to false until complete
             this.initialized = false;
             
+            // CRITICAL FIX: Record start time for initialization
+            this.initStartTime = performance.now();
+            
             // Enable debug mode for troubleshooting
             this.debugMode = true;
             console.log("Debug mode enabled");
+            
+            // CRITICAL FIX: Add CSS reset to ensure canvas visibility
+            this.addCssReset();
             
             // Setup loading screen
             this.setupLoadingScreenReferences();
@@ -90,6 +100,12 @@ class Game {
             if (!threeInitialized) {
                 throw new Error("Failed to initialize Three.js");
             }
+            
+            // CRITICAL FIX: Set up emergency initialization timeout
+            // This will force the game to initialize if the normal process takes too long
+            this.initTimeoutId = setTimeout(() => {
+                this.emergencyInitialization();
+            }, 10000); // 10 seconds timeout
             
             // Add debug helpers if in debug mode
             if (this.debugMode) {
@@ -128,6 +144,12 @@ class Game {
             
             this.loadingManager.onLoad = () => {
                 console.log("All assets loaded by LoadingManager");
+                
+                // CRITICAL FIX: Clear emergency initialization timeout
+                if (this.initTimeoutId) {
+                    clearTimeout(this.initTimeoutId);
+                    this.initTimeoutId = null;
+                }
                 
                 // Initialize remaining systems
                 Promise.all([
@@ -217,13 +239,11 @@ class Game {
         try {
             console.log("Initializing Three.js...");
             
-            // Create scene
+            // Create scene with black background
             this.scene = new THREE.Scene();
-            
-            // Set background color to black (space)
             this.scene.background = new THREE.Color(0x000000);
             
-            // Create camera
+            // Create camera with good defaults for space game
             this.camera = new THREE.PerspectiveCamera(
                 75, // Field of view
                 window.innerWidth / window.innerHeight, // Aspect ratio
@@ -231,71 +251,116 @@ class Game {
                 10000 // Far clipping plane
             );
             
-            // Set initial camera position
+            // Position camera at a reasonable starting point
             this.camera.position.set(0, 10, 50);
             console.log(`Initial camera position: ${JSON.stringify(this.camera.position)}`);
             
-            // Create renderer
-            const canvas = document.createElement('canvas');
-            document.body.appendChild(canvas);
+            // CRITICAL FIX: Remove any existing canvas to prevent conflicts
+            const existingCanvas = document.querySelector('canvas');
+            if (existingCanvas) {
+                console.log("Removing existing canvas");
+                existingCanvas.remove();
+            }
             
-            // Style canvas to cover viewport
-            canvas.style.position = 'absolute';
+            // Create a new canvas with a unique ID
+            const canvas = document.createElement('canvas');
+            canvas.id = 'game-canvas';
+            
+            // CRITICAL FIX: Ensure canvas is visible and positioned correctly
+            canvas.style.position = 'fixed'; // Use fixed instead of absolute
             canvas.style.top = '0';
             canvas.style.left = '0';
-            canvas.style.width = '100%';
-            canvas.style.height = '100%';
-            canvas.style.zIndex = '1'; // Above loading screen
+            canvas.style.width = '100vw'; // Use viewport units
+            canvas.style.height = '100vh';
+            canvas.style.zIndex = '10'; // Higher z-index to ensure it's on top
+            canvas.style.display = 'block'; // Ensure it's displayed as block
+            canvas.style.backgroundColor = '#000000'; // Black background as fallback
             
-            // Create WebGL renderer
+            // CRITICAL FIX: Append canvas to body and ensure it's the top element
+            document.body.appendChild(canvas);
+            
+            // Log canvas dimensions for debugging
+            console.log(`Canvas dimensions: ${canvas.clientWidth}x${canvas.clientHeight}`);
+            
+            // Create WebGL renderer with robust settings
             this.renderer = new THREE.WebGLRenderer({
                 canvas: canvas,
-                antialias: window.innerWidth > 1024, // Only use antialiasing on larger screens
+                antialias: true, // Always use antialiasing for better visuals
                 alpha: false, // No transparency needed for space
                 powerPreference: 'high-performance',
-                precision: 'mediump' // Use medium precision for better performance
+                precision: 'highp', // Use high precision for better visuals
+                preserveDrawingBuffer: true // Important for screenshots and post-processing
             });
             
-            // Set renderer size and pixel ratio
-            this.renderer.setSize(window.innerWidth, window.innerHeight);
-            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // Limit pixel ratio for performance
+            // CRITICAL FIX: Set renderer size explicitly to match window
+            this.renderer.setSize(window.innerWidth, window.innerHeight, false);
+            this.renderer.setPixelRatio(window.devicePixelRatio || 1);
             
-            // Disable logarithmic depth buffer for performance
-            this.renderer.logarithmicDepthBuffer = false;
+            // CRITICAL FIX: Set output encoding for better colors
+            this.renderer.outputColorSpace = THREE.SRGBColorSpace;
             
-            // Add lights to the scene
-            const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+            // Add stronger lights to the scene
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
             this.scene.add(ambientLight);
             
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
             directionalLight.position.set(1, 1, 1);
+            directionalLight.name = "MainLight";
             this.scene.add(directionalLight);
             
-            // Add a test sphere to verify rendering
-            const geometry = new THREE.SphereGeometry(5, 16, 16); // Reduced segments for performance
-            const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            // Add a bright red test sphere to verify rendering
+            const geometry = new THREE.SphereGeometry(10, 32, 32); // Larger and more detailed
+            const material = new THREE.MeshStandardMaterial({ 
+                color: 0xff0000,
+                emissive: 0xff0000,
+                emissiveIntensity: 0.5 // Make it glow
+            });
             const sphere = new THREE.Mesh(geometry, material);
             sphere.position.set(0, 0, 0);
             sphere.name = "TestSphere";
             this.scene.add(sphere);
             
-            // Handle window resize
+            // CRITICAL FIX: Add orbit controls for easier debugging
+            if (typeof OrbitControls !== 'undefined') {
+                try {
+                    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+                    this.controls.enableDamping = true;
+                    this.controls.dampingFactor = 0.25;
+                    console.log("Orbit controls initialized");
+                } catch (error) {
+                    console.warn("Could not initialize OrbitControls:", error);
+                }
+            }
+            
+            // Handle window resize with debouncing
+            let resizeTimeout;
             window.addEventListener('resize', () => {
-                this.camera.aspect = window.innerWidth / window.innerHeight;
-                this.camera.updateProjectionMatrix();
-                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(() => {
+                    console.log("Handling window resize");
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight, false);
+                    // Force a render after resize
+                    this.renderScene();
+                }, 100);
             });
             
-            // Enable frustum culling for performance
-            this.camera.frustumCulled = true;
-            
-            // Force an initial render to ensure scene is visible
+            // CRITICAL FIX: Force multiple renders to ensure scene is visible
+            console.log("Forcing initial renders");
             this.renderer.render(this.scene, this.camera);
+            
+            // Schedule additional renders to ensure visibility
+            setTimeout(() => this.renderer.render(this.scene, this.camera), 100);
+            setTimeout(() => this.renderer.render(this.scene, this.camera), 500);
+            setTimeout(() => this.renderer.render(this.scene, this.camera), 1000);
             
             console.log(`Scene initialized with ${this.scene.children.length} objects`);
             return true;
         } catch (error) {
             console.error("Error initializing Three.js:", error);
+            // CRITICAL FIX: Show error on screen
+            this.showErrorMessage("Failed to initialize Three.js: " + error.message);
             return false;
         }
     }
@@ -1520,12 +1585,29 @@ class Game {
     // Separate rendering function to ensure it's always called
     renderScene() {
         try {
-            // Always render the scene if we have the necessary components
-            if (this.renderer && this.scene && this.camera) {
-                this.renderer.render(this.scene, this.camera);
-            } else {
-                console.warn("Cannot render scene: missing renderer, scene, or camera");
+            // CRITICAL FIX: Always check if renderer, scene, and camera exist
+            if (!this.renderer) {
+                console.error("Cannot render: renderer is null");
+                return;
             }
+            
+            if (!this.scene) {
+                console.error("Cannot render: scene is null");
+                return;
+            }
+            
+            if (!this.camera) {
+                console.error("Cannot render: camera is null");
+                return;
+            }
+            
+            // Update orbit controls if they exist
+            if (this.controls && this.controls.update) {
+                this.controls.update();
+            }
+            
+            // Render the scene
+            this.renderer.render(this.scene, this.camera);
         } catch (error) {
             console.error("Error rendering scene:", error);
         }
@@ -1591,23 +1673,25 @@ class Game {
     // Animation loop
     animate() {
         try {
-            // Only continue animation if game is active
-            if (!this.isRunning) {
-                console.warn("Animation stopped: game is not running");
-                return;
-            }
-            
             // Request next frame immediately to ensure smooth animation
             requestAnimationFrame(this.animate);
             
+            // CRITICAL FIX: Always render the scene, even if game is not running
+            this.renderScene();
+            
+            // Only continue with game logic if game is active
+            if (!this.isRunning) {
+                return;
+            }
+            
             // Calculate delta time
             const now = performance.now();
-            const delta = (now - this.lastTime) / 1000; // Convert to seconds
-            this.lastTime = now;
+            const delta = now - this.lastTime;
             
             // Skip if delta is too large (tab was inactive)
-            if (delta > 0.5) {
+            if (delta > 500) {
                 console.log("Large frame time detected, skipping update:", delta);
+                this.lastTime = now;
                 return;
             }
             
@@ -1615,9 +1699,6 @@ class Game {
             if (this.stats) {
                 this.stats.begin();
             }
-            
-            // Always render the scene, even if not initialized
-            this.renderScene();
             
             // Only update game logic if initialized
             if (this.initialized) {
@@ -1643,10 +1724,12 @@ class Game {
                     console.log(`FPS: ${this.fps.toFixed(1)}`);
                 }
             }
+            
+            this.lastTime = now;
         } catch (error) {
             console.error("Error in animation loop:", error);
             // Continue animation despite errors
-            requestAnimationFrame(this.animate);
+            this.lastTime = performance.now();
         }
     }
 
@@ -1819,6 +1902,137 @@ class Game {
         // Update FPS counter
         if (this.fpsElement) {
             this.fpsElement.textContent = this.fps;
+        }
+    }
+
+    // Add this new method after init()
+    addCssReset() {
+        console.log("Adding CSS reset to ensure canvas visibility");
+        
+        // Create a style element
+        const style = document.createElement('style');
+        style.id = 'game-css-reset';
+        style.textContent = `
+            /* CSS Reset for Star Flight Game */
+            html, body {
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+                overflow: hidden;
+                background-color: #000000;
+            }
+            
+            /* Ensure canvas is always visible */
+            #game-canvas {
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                width: 100vw !important;
+                height: 100vh !important;
+                z-index: 10 !important;
+                display: block !important;
+            }
+            
+            /* Hide any potential overlays */
+            div[id*="loading"], div[class*="loading"] {
+                z-index: 5 !important;
+            }
+        `;
+        
+        // Add to document head
+        document.head.appendChild(style);
+    }
+
+    // Add this new method after init()
+    emergencyInitialization() {
+        console.warn("Emergency initialization triggered after timeout");
+        
+        if (this.initialized || this.emergencyInitialized) {
+            console.log("Game already initialized, skipping emergency initialization");
+            return;
+        }
+        
+        this.emergencyInitialized = true;
+        
+        try {
+            // Force remove all loading screens
+            this.forceRemoveAllLoadingScreens();
+            
+            // Ensure we have a scene and camera
+            if (!this.scene) {
+                console.warn("Creating emergency scene");
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x000000);
+            }
+            
+            if (!this.camera) {
+                console.warn("Creating emergency camera");
+                this.camera = new THREE.PerspectiveCamera(
+                    75,
+                    window.innerWidth / window.innerHeight,
+                    0.1,
+                    10000
+                );
+                this.camera.position.set(0, 10, 50);
+            }
+            
+            // Ensure we have a renderer
+            if (!this.renderer) {
+                console.warn("Creating emergency renderer");
+                const canvas = document.createElement('canvas');
+                canvas.id = 'emergency-canvas';
+                canvas.style.position = 'fixed';
+                canvas.style.top = '0';
+                canvas.style.left = '0';
+                canvas.style.width = '100vw';
+                canvas.style.height = '100vh';
+                canvas.style.zIndex = '100';
+                document.body.appendChild(canvas);
+                
+                this.renderer = new THREE.WebGLRenderer({
+                    canvas: canvas,
+                    antialias: true
+                });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+            
+            // Add a visible object to the scene
+            const geometry = new THREE.SphereGeometry(20, 32, 32);
+            const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const sphere = new THREE.Mesh(geometry, material);
+            sphere.name = "EmergencySphere";
+            this.scene.add(sphere);
+            
+            // Add text to indicate emergency mode
+            const message = document.createElement('div');
+            message.style.position = 'fixed';
+            message.style.top = '20px';
+            message.style.left = '20px';
+            message.style.color = 'white';
+            message.style.fontFamily = 'Arial, sans-serif';
+            message.style.fontSize = '16px';
+            message.style.zIndex = '101';
+            message.textContent = 'Emergency Mode: Game initialized with minimal features. Refresh to try again.';
+            document.body.appendChild(message);
+            
+            // Force render
+            this.renderer.render(this.scene, this.camera);
+            
+            // Set as initialized and start animation loop
+            this.initialized = true;
+            this.isRunning = true;
+            
+            // Start animation loop if not already running
+            if (!this.animationFrameId) {
+                this.lastTime = performance.now();
+                this.animate();
+            }
+            
+            console.log("Emergency initialization complete");
+        } catch (error) {
+            console.error("Failed emergency initialization:", error);
+            this.showErrorMessage("Critical error: " + error.message);
         }
     }
 }
