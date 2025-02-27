@@ -9,9 +9,9 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "npm install vite@4.5.0 --no-save && vite build",
+    "build": "vite build",
     "preview": "vite preview",
-    "vercel-build": "npm install vite@4.5.0 --no-save && vite build"
+    "vercel-build": "vite build"
   },
   "keywords": [
     "three.js",
@@ -27,9 +27,9 @@
   "dependencies": {
     "three": "0.157.0",
     "cannon-es": "0.20.0",
-    "howler": "2.2.3",
-    "vite": "4.5.0"
+    "howler": "2.2.3"
   },
   "devDependencies": {
+    "vite": "4.5.0"
   }
 } 

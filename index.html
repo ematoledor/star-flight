@@ -69,6 +69,7 @@
             justify-content: center;
             align-items: center;
             z-index: 1000;
+            transition: opacity 0.5s ease-in-out;
         }
         
         #loading h1 {
@@ -115,7 +116,7 @@
         <div id="loading-bar">
             <div id="loading-progress"></div>
         </div>
-        <p>Loading game assets...</p>
+        <p id="loading-text">Loading game assets...</p>
     </div>
     
     <div id="ui-container">
@@ -125,6 +126,7 @@
             <div class="hud-item">SHIELD: <span id="shield">100</span>%</div>
             <div class="hud-item">ENERGY: <span id="energy">100</span>%</div>
             <div class="hud-item">SECTOR: <span id="sector">Alpha Quadrant</span></div>
+            <div class="hud-item">FPS: <span id="fps">0</span></div>
         </div>
         <div id="crosshair">
             <svg width="30" height="30" viewBox="0 0 30 30">
@@ -137,11 +139,40 @@
             </svg>
         </div>
         <div id="instructions">
-            <p>WASD or Arrow Keys: Move | Mouse: Aim | Left Click: Fire | U: Upgrades | ESC: Pause</p>
+            <p>WASD or Arrow Keys: Move | Mouse: Aim | Left Click: Fire | U: Upgrades | ESC: Pause | D: Debug Mode</p>
         </div>
     </div>
 
     <!-- Main game script -->
+    <script type="module">
+        // Initialize loading progress
+        const loadingProgress = document.getElementById('loading-progress');
+        const loadingText = document.getElementById('loading-text');
+        
+        // Show initial loading progress
+        loadingProgress.style.width = '10%';
+        
+        // Update loading text with progress
+        function updateLoadingProgress(progress) {
+            if (loadingProgress) {
+                loadingProgress.style.width = `${progress}%`;
+            }
+            if (loadingText) {
+                loadingText.textContent = `Loading game assets... ${Math.round(progress)}%`;
+            }
+        }
+        
+        // Simulate initial loading progress
+        let progress = 10;
+        const loadingInterval = setInterval(() => {
+            progress += 5;
+            if (progress > 90) {
+                clearInterval(loadingInterval);
+            }
+            updateLoadingProgress(progress);
+        }, 200);
+    </script>
+    
     <script type="module" src="src/main.js"></script>
 
     <noscript>

@@ -82,7 +82,7 @@ class Game {
             };
             
             // Initialize Three.js scene
-            this.initThreeJS();
+            this.initThree();
             
             // Initialize physics system
             this.initPhysics();
@@ -123,46 +123,68 @@ class Game {
     
     initThree() {
         try {
-        // Create scene
-        this.scene = new THREE.Scene();
-            if (!this.scene) {
-                throw new Error("Failed to create THREE.Scene");
-            }
-        this.scene.background = new THREE.Color(0x000000);
-        
-        // Create camera
-            this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 20000);
-        this.camera.position.z = 15;
-        
-        // Create renderer
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(window.devicePixelRatio);
-            this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-            this.renderer.shadowMap.enabled = true;
-        document.body.appendChild(this.renderer.domElement);
+            // Create scene
+            this.scene = new THREE.Scene();
             
-            // Add post-processing for improved visuals
-            this.setupPostProcessing();
-        
-        // Add basic lighting
-            const ambientLight = new THREE.AmbientLight(0x202020);
-        this.scene.add(ambientLight);
-        
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-        directionalLight.position.set(1, 1, 1).normalize();
-        this.scene.add(directionalLight);
-        
-            // Add distant stars and galaxy backdrop
-            this.addDistantSpaceBackdrop();
+            // Create camera with wider field of view
+            this.camera = new THREE.PerspectiveCamera(
+                75, // Field of view (increased from default)
+                window.innerWidth / window.innerHeight,
+                0.1,
+                10000 // Increased far plane for space scenes
+            );
             
-            // Add temporary controls for development (will be replaced by spacecraft controls)
-        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+            // Position camera at a better starting position
+            this.camera.position.set(0, 100, 300);
+            this.camera.lookAt(0, 0, 0);
             
-            console.log("Three.js initialized successfully");
+            // Log camera position for debugging
+            console.log("Initial camera position:", this.camera.position);
+            
+            // Create renderer
+            this.renderer = new THREE.WebGLRenderer({
+                antialias: true,
+                alpha: true
+            });
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
+            this.renderer.setPixelRatio(window.devicePixelRatio);
+            this.renderer.setClearColor(0x000000, 1);
+            
+            // Add renderer to page
+            document.body.appendChild(this.renderer.domElement);
+            
+            // Handle window resize
+            window.addEventListener('resize', () => {
+                this.camera.aspect = window.innerWidth / window.innerHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+            
+            // Add ambient light
+            const ambientLight = new THREE.AmbientLight(0x404040);
+            this.scene.add(ambientLight);
+            
+            // Add directional light (sun)
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(1, 1, 1).normalize();
+            this.scene.add(directionalLight);
+            
+            // Add a simple object to verify rendering is working
+            const testGeometry = new THREE.SphereGeometry(50, 32, 32);
+            const testMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const testSphere = new THREE.Mesh(testGeometry, testMaterial);
+            testSphere.position.set(0, 0, 0);
+            this.scene.add(testSphere);
+            console.log("Added test sphere to scene at origin");
+            
+            // Log scene children count
+            console.log(`Scene initialized with ${this.scene.children.length} objects`);
+            
+            return true;
         } catch (error) {
             console.error("Error initializing Three.js:", error);
-            throw error; // Re-throw to halt initialization
+            this.showErrorMessage("Failed to initialize 3D renderer");
+            return false;
         }
     }
     
@@ -597,44 +619,44 @@ class Game {
     
     // Add a method to forcibly remove all loading screens
     forceRemoveAllLoadingScreens() {
-        console.log("Forcibly removing all loading screens");
+        console.log("Forcing removal of all loading screens");
         
-        // Try to remove by ID
-        const loadingScreens = [
+        // Remove by ID
+        const loadingElements = [
             document.getElementById('loading'),
             document.getElementById('loading-screen')
         ];
         
-        // Also try to find by selector
-        document.querySelectorAll('[id*="loading"]').forEach(el => {
-            if (!loadingScreens.includes(el)) {
-                loadingScreens.push(el);
+        loadingElements.forEach(element => {
+            if (element) {
+                console.log(`Removing loading element: ${element.id}`);
+                element.style.opacity = '0';
+                setTimeout(() => {
+                    if (element.parentNode) {
+                        element.parentNode.removeChild(element);
+                    }
+                }, 500);
             }
         });
         
-        // Remove each loading screen
-        loadingScreens.forEach(screen => {
-            if (screen) {
-                console.log(`Removing loading screen: ${screen.id}`);
-                screen.style.opacity = '0';
-                screen.style.display = 'none';
-                
-                if (screen.parentNode) {
-                    screen.parentNode.removeChild(screen);
-                }
+        // Find any elements containing loading text
+        document.querySelectorAll('*').forEach(element => {
+            if (element.textContent && element.textContent.includes('Loading game assets')) {
+                console.log(`Removing element with loading text: ${element.tagName}`);
+                element.style.opacity = '0';
+                setTimeout(() => {
+                    if (element.parentNode) {
+                        element.parentNode.removeChild(element);
+                    }
+                }, 500);
             }
         });
         
-        // Also try to find any element with "Loading game assets" text
-        document.querySelectorAll('*').forEach(el => {
-            if (el.textContent && el.textContent.includes('Loading game assets')) {
-                console.log('Found element with loading text:', el);
-                el.style.display = 'none';
-                if (el.parentNode) {
-                    el.parentNode.removeChild(el);
-                }
-            }
-        });
+        // Force render a frame to ensure scene is visible
+        if (this.renderer && this.scene && this.camera) {
+            console.log("Forcing a render frame");
+            this.renderer.render(this.scene, this.camera);
+        }
     }
     
     // Add exploration-focused methods
@@ -1213,72 +1235,73 @@ class Game {
     }
     
     update(time, delta) {
-        if (!this.isRunning || this.isPaused) return;
+        // Skip updates if game is not initialized
+        if (!this.initialized) {
+            return;
+        }
         
         // Debug logging every 60 frames
-        if (!this.frameCount) this.frameCount = 0;
-        this.frameCount++;
-        
         if (this.frameCount % 60 === 0) {
-            console.log('Camera position:', this.camera.position);
-            console.log('Camera rotation:', this.camera.rotation);
-            
-            // Count objects in scene
-            let objectCount = 0;
-            let visibleObjectCount = 0;
-            if (this.scene) {
-                this.scene.traverse(obj => {
-                    objectCount++;
-                    if (obj.visible) visibleObjectCount++;
-                });
-                console.log(`Scene objects: ${objectCount}, Visible objects: ${visibleObjectCount}`);
-            }
-            
-            // Log spacecraft position
+            console.log(`Camera position: ${this.camera.position.x.toFixed(2)}, ${this.camera.position.y.toFixed(2)}, ${this.camera.position.z.toFixed(2)}`);
+            console.log(`Scene objects: ${this.scene.children.length}`);
             if (this.spacecraft) {
-                console.log('Spacecraft position:', this.spacecraft.position);
-                console.log('Spacecraft visible:', this.spacecraft.visible);
-            }
-            
-            // Log mothership position
-            if (this.gameWorld && this.gameWorld.motherships && this.gameWorld.motherships.length > 0) {
-                console.log('Mothership position:', this.gameWorld.motherships[0].position);
+                console.log(`Spacecraft position: ${this.spacecraft.position.x.toFixed(2)}, ${this.spacecraft.position.y.toFixed(2)}, ${this.spacecraft.position.z.toFixed(2)}`);
+                console.log(`Spacecraft visible: ${this.spacecraft.visible}`);
             }
         }
+        this.frameCount = (this.frameCount || 0) + 1;
         
         // Update physics
         if (this.physicsSystem) {
-            this.physicsSystem.update(delta / 1000);
+            this.physicsSystem.update(delta);
+        }
+        
+        // Update game world
+        if (this.gameWorld) {
+            const playerPosition = this.spacecraft ? this.spacecraft.position : this.camera.position;
+            this.gameWorld.update(delta, playerPosition);
         }
         
         // Update spacecraft
         if (this.spacecraft) {
-            this.spacecraft.update(delta / 1000);
+            this.spacecraft.update(delta);
             
-            // Update UI elements
-            this.updateHealthUI();
-            this.updateSectorInfo();
-        }
-        
-        // Update game world with player position for discovery checks
-        if (this.gameWorld && this.spacecraft) {
-            this.gameWorld.update(delta / 1000, this.spacecraft.position);
+            // Update camera to follow spacecraft if not in debug mode
+            if (!this.debugMode) {
+                // Get spacecraft direction
+                const direction = new THREE.Vector3(0, 0, -1);
+                direction.applyQuaternion(this.spacecraft.quaternion);
+                
+                // Position camera behind spacecraft
+                const cameraOffset = new THREE.Vector3(0, 30, 100);
+                cameraOffset.applyQuaternion(this.spacecraft.quaternion);
+                
+                this.camera.position.copy(this.spacecraft.position).add(cameraOffset);
+                this.camera.lookAt(this.spacecraft.position);
+            }
             
             // Check for anomaly interactions
-            const interactingAnomaly = this.gameWorld.checkAnomalyInteractions(this.spacecraft);
-            if (interactingAnomaly) {
-                this.handleAnomalyInteraction(interactingAnomaly);
+            if (this.gameWorld) {
+                const anomaly = this.gameWorld.checkAnomalyInteractions(this.spacecraft);
+                if (anomaly) {
+                    this.handleAnomalyInteraction(anomaly);
+                }
             }
         }
         
-        // Update debug info if in debug mode
-        if (this.debugMode) {
-            this.updateDebugInfo();
+        // Update UI
+        this.updateUI();
+        
+        // Update controls if in debug mode
+        if (this.debugMode && this.controls) {
+            this.controls.update();
         }
         
-        // Update stats
-        if (this.stats) {
-            this.stats.update();
+        // Render scene
+        if (this.renderer && this.scene && this.camera) {
+            this.renderer.render(this.scene, this.camera);
+        } else {
+            console.warn("Cannot render: missing renderer, scene, or camera");
         }
     }
 
