@@ -1582,6 +1582,81 @@ class Game {
         }
     }
     
+    // Animation loop
+    animate() {
+        try {
+            // Request next frame immediately to ensure smooth animation
+            requestAnimationFrame(this.animate);
+            
+            // CRITICAL FIX: Always render the scene, even if game is not running
+            // This ensures the scene remains visible even during performance issues
+            this.renderScene();
+            
+            // Only continue with game logic if game is active
+            if (!this.isRunning) {
+                return;
+            }
+            
+            // Calculate delta time
+            const now = performance.now();
+            const delta = now - this.lastTime;
+            
+            // CRITICAL FIX: Handle large frame times more gracefully
+            // Instead of skipping updates entirely, cap the delta time
+            const cappedDelta = Math.min(delta, 100); // Cap at 100ms (10fps minimum)
+            
+            // Log large frame times but continue processing
+            if (delta > 500) {
+                console.warn("Large frame time detected:", delta, "ms - capping to", cappedDelta, "ms");
+                // Don't return early - we'll still process the frame with capped delta
+            }
+            
+            // Update stats if available
+            if (this.stats) {
+                this.stats.begin();
+            }
+            
+            // Only update game logic if initialized
+            if (this.initialized) {
+                // Use capped delta to prevent physics explosions
+                this.update(now, cappedDelta);
+            }
+            
+            // Update stats if available
+            if (this.stats) {
+                this.stats.end();
+            }
+            
+            // Update FPS counter
+            this.frameCount++;
+            this.framesSinceLastFpsUpdate++;
+            
+            if (now - this.lastFpsUpdate > 1000) { // Update FPS every second
+                this.fps = this.framesSinceLastFpsUpdate * 1000 / (now - this.lastFpsUpdate);
+                this.lastFpsUpdate = now;
+                this.framesSinceLastFpsUpdate = 0;
+                
+                // Log FPS in debug mode
+                if (this.debugMode) {
+                    console.log(`FPS: ${this.fps.toFixed(1)}`);
+                }
+                
+                // CRITICAL FIX: Check for consistently low FPS and take action
+                if (this.fps < 20 && !this.lowFpsWarningShown) {
+                    console.warn("Low FPS detected:", this.fps.toFixed(1), "- reducing quality settings");
+                    this.reduceQuality();
+                    this.lowFpsWarningShown = true;
+                }
+            }
+            
+            this.lastTime = now;
+        } catch (error) {
+            console.error("Error in animation loop:", error);
+            // Continue animation despite errors
+            this.lastTime = performance.now();
+        }
+    }
+    
     // Separate rendering function to ensure it's always called
     renderScene() {
         try {
@@ -1606,10 +1681,69 @@ class Game {
                 this.controls.update();
             }
             
+            // CRITICAL FIX: Ensure the scene is visible by checking if there are objects
+            if (this.scene.children.length === 0 && !this.sceneEmptyWarningShown) {
+                console.warn("Scene has no objects - adding emergency sphere");
+                this.addEmergencySphere();
+                this.sceneEmptyWarningShown = true;
+            }
+            
+            // CRITICAL FIX: Check if camera is looking at something
+            if (this.camera && this.scene.children.length > 0) {
+                const testSphere = this.scene.getObjectByName("TestSphere") || this.scene.getObjectByName("EmergencySphere");
+                if (testSphere && !this.cameraTargetSet) {
+                    this.camera.lookAt(testSphere.position);
+                    this.cameraTargetSet = true;
+                }
+            }
+            
             // Render the scene
             this.renderer.render(this.scene, this.camera);
+            
+            // CRITICAL FIX: Force a second render after a short delay if we're in emergency mode
+            if (this.emergencyInitialized && !this.emergencyRenderScheduled) {
+                this.emergencyRenderScheduled = true;
+                setTimeout(() => {
+                    if (this.renderer && this.scene && this.camera) {
+                        this.renderer.render(this.scene, this.camera);
+                    }
+                    this.emergencyRenderScheduled = false;
+                }, 100);
+            }
         } catch (error) {
             console.error("Error rendering scene:", error);
+            // Try to recover by creating emergency objects
+            this.addEmergencySphere();
+        }
+    }
+    
+    // Add a method to add an emergency sphere if the scene is empty
+    addEmergencySphere() {
+        if (!this.scene) return;
+        
+        try {
+            // Create a bright red sphere that's impossible to miss
+            const geometry = new THREE.SphereGeometry(20, 16, 16);
+            const material = new THREE.MeshBasicMaterial({ 
+                color: 0xff0000,
+                wireframe: true // Wireframe is less resource-intensive
+            });
+            const sphere = new THREE.Mesh(geometry, material);
+            sphere.name = "EmergencySphere";
+            sphere.position.set(0, 0, 0);
+            this.scene.add(sphere);
+            
+            // Add a directional light
+            if (!this.scene.getObjectByName("EmergencyLight")) {
+                const light = new THREE.DirectionalLight(0xffffff, 1);
+                light.position.set(1, 1, 1);
+                light.name = "EmergencyLight";
+                this.scene.add(light);
+            }
+            
+            console.log("Added emergency sphere and light to scene");
+        } catch (error) {
+            console.error("Failed to add emergency sphere:", error);
         }
     }
     
@@ -1668,69 +1802,6 @@ class Game {
         });
         
         console.log('Input manager initialized with key bindings');
-    }
-
-    // Animation loop
-    animate() {
-        try {
-            // Request next frame immediately to ensure smooth animation
-            requestAnimationFrame(this.animate);
-            
-            // CRITICAL FIX: Always render the scene, even if game is not running
-            this.renderScene();
-            
-            // Only continue with game logic if game is active
-            if (!this.isRunning) {
-                return;
-            }
-            
-            // Calculate delta time
-            const now = performance.now();
-            const delta = now - this.lastTime;
-            
-            // Skip if delta is too large (tab was inactive)
-            if (delta > 500) {
-                console.log("Large frame time detected, skipping update:", delta);
-                this.lastTime = now;
-                return;
-            }
-            
-            // Update stats if available
-            if (this.stats) {
-                this.stats.begin();
-            }
-            
-            // Only update game logic if initialized
-            if (this.initialized) {
-                this.update(now, delta);
-            }
-            
-            // Update stats if available
-            if (this.stats) {
-                this.stats.end();
-            }
-            
-            // Update FPS counter
-            this.frameCount++;
-            this.framesSinceLastFpsUpdate++;
-            
-            if (now - this.lastFpsUpdate > 1000) { // Update FPS every second
-                this.fps = this.framesSinceLastFpsUpdate * 1000 / (now - this.lastFpsUpdate);
-                this.lastFpsUpdate = now;
-                this.framesSinceLastFpsUpdate = 0;
-                
-                // Log FPS in debug mode
-                if (this.debugMode) {
-                    console.log(`FPS: ${this.fps.toFixed(1)}`);
-                }
-            }
-            
-            this.lastTime = now;
-        } catch (error) {
-            console.error("Error in animation loop:", error);
-            // Continue animation despite errors
-            this.lastTime = performance.now();
-        }
     }
 
     // Initialize physics system
@@ -1915,33 +1986,142 @@ class Game {
         style.textContent = `
             /* CSS Reset for Star Flight Game */
             html, body {
-                width: 100%;
-                height: 100%;
-                margin: 0;
-                padding: 0;
-                overflow: hidden;
-                background-color: #000000;
+                width: 100% !important;
+                height: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: hidden !important;
+                background-color: #000000 !important;
             }
             
             /* Ensure canvas is always visible */
-            #game-canvas {
+            #game-canvas, canvas {
                 position: fixed !important;
                 top: 0 !important;
                 left: 0 !important;
                 width: 100vw !important;
                 height: 100vh !important;
-                z-index: 10 !important;
+                z-index: 9999 !important;
                 display: block !important;
+                background-color: #000000 !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                transform: none !important;
             }
             
             /* Hide any potential overlays */
             div[id*="loading"], div[class*="loading"] {
                 z-index: 5 !important;
+                display: none !important;
             }
         `;
         
         // Add to document head
         document.head.appendChild(style);
+        
+        // CRITICAL FIX: Set up periodic check to ensure canvas remains visible
+        this.canvasVisibilityInterval = setInterval(() => {
+            this.ensureCanvasVisibility();
+        }, 1000); // Check every second
+    }
+    
+    // Add a new method to ensure canvas visibility
+    ensureCanvasVisibility() {
+        try {
+            // Find all canvas elements
+            const canvases = document.querySelectorAll('canvas');
+            
+            if (canvases.length === 0) {
+                console.warn("No canvas elements found - creating new canvas");
+                this.recreateCanvas();
+                return;
+            }
+            
+            // Check if our game canvas is visible
+            let gameCanvas = document.getElementById('game-canvas');
+            
+            // If no game canvas, use the first canvas
+            if (!gameCanvas && canvases.length > 0) {
+                gameCanvas = canvases[0];
+                gameCanvas.id = 'game-canvas';
+            }
+            
+            if (gameCanvas) {
+                // Check if canvas is visible
+                const style = window.getComputedStyle(gameCanvas);
+                const isVisible = style.display !== 'none' && 
+                                 style.visibility !== 'hidden' && 
+                                 style.opacity !== '0' &&
+                                 gameCanvas.width > 0 &&
+                                 gameCanvas.height > 0;
+                
+                if (!isVisible) {
+                    console.warn("Canvas is not visible - fixing visibility");
+                    gameCanvas.style.display = 'block';
+                    gameCanvas.style.visibility = 'visible';
+                    gameCanvas.style.opacity = '1';
+                    gameCanvas.style.zIndex = '9999';
+                    
+                    // Force a render
+                    if (this.renderer && this.scene && this.camera) {
+                        this.renderer.render(this.scene, this.camera);
+                    }
+                }
+                
+                // Check if canvas size is correct
+                if (gameCanvas.width !== window.innerWidth || gameCanvas.height !== window.innerHeight) {
+                    console.warn("Canvas size mismatch - resizing");
+                    if (this.renderer) {
+                        this.renderer.setSize(window.innerWidth, window.innerHeight, false);
+                    }
+                }
+            } else {
+                console.warn("Game canvas not found - recreating");
+                this.recreateCanvas();
+            }
+        } catch (error) {
+            console.error("Error ensuring canvas visibility:", error);
+        }
+    }
+    
+    // Add a method to recreate the canvas if it's missing
+    recreateCanvas() {
+        try {
+            // Create a new canvas
+            const canvas = document.createElement('canvas');
+            canvas.id = 'game-canvas';
+            
+            // Style the canvas
+            canvas.style.position = 'fixed';
+            canvas.style.top = '0';
+            canvas.style.left = '0';
+            canvas.style.width = '100vw';
+            canvas.style.height = '100vh';
+            canvas.style.zIndex = '9999';
+            canvas.style.backgroundColor = '#000000';
+            
+            // Add to document body
+            document.body.appendChild(canvas);
+            
+            // Recreate renderer if needed
+            if (!this.renderer || this.renderer.domElement !== canvas) {
+                console.log("Recreating WebGL renderer");
+                this.renderer = new THREE.WebGLRenderer({
+                    canvas: canvas,
+                    antialias: true,
+                    alpha: false,
+                    powerPreference: 'high-performance'
+                });
+                this.renderer.setSize(window.innerWidth, window.innerHeight, false);
+                
+                // Force a render
+                if (this.scene && this.camera) {
+                    this.renderer.render(this.scene, this.camera);
+                }
+            }
+        } catch (error) {
+            console.error("Error recreating canvas:", error);
+        }
     }
 
     // Add this new method after init()
@@ -1974,35 +2154,72 @@ class Game {
                     0.1,
                     10000
                 );
-                this.camera.position.set(0, 10, 50);
+                this.camera.position.set(0, 0, 50);
             }
+            
+            // CRITICAL FIX: Ensure canvas exists and is visible
+            this.ensureCanvasVisibility();
             
             // Ensure we have a renderer
             if (!this.renderer) {
                 console.warn("Creating emergency renderer");
-                const canvas = document.createElement('canvas');
-                canvas.id = 'emergency-canvas';
-                canvas.style.position = 'fixed';
-                canvas.style.top = '0';
-                canvas.style.left = '0';
-                canvas.style.width = '100vw';
-                canvas.style.height = '100vh';
-                canvas.style.zIndex = '100';
-                document.body.appendChild(canvas);
+                const canvas = document.getElementById('game-canvas') || document.createElement('canvas');
+                if (!canvas.parentNode) {
+                    canvas.id = 'game-canvas';
+                    canvas.style.position = 'fixed';
+                    canvas.style.top = '0';
+                    canvas.style.left = '0';
+                    canvas.style.width = '100vw';
+                    canvas.style.height = '100vh';
+                    canvas.style.zIndex = '9999';
+                    document.body.appendChild(canvas);
+                }
                 
+                // Create a simple WebGL renderer with minimal settings
                 this.renderer = new THREE.WebGLRenderer({
                     canvas: canvas,
-                    antialias: true
+                    antialias: false, // Disable for performance
+                    alpha: false,
+                    precision: 'lowp', // Use low precision for performance
+                    powerPreference: 'high-performance'
                 });
                 this.renderer.setSize(window.innerWidth, window.innerHeight);
             }
             
-            // Add a visible object to the scene
-            const geometry = new THREE.SphereGeometry(20, 32, 32);
-            const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-            const sphere = new THREE.Mesh(geometry, material);
-            sphere.name = "EmergencySphere";
-            this.scene.add(sphere);
+            // CRITICAL FIX: Clear the scene and add simple objects
+            // This ensures we have a clean slate
+            while (this.scene.children.length > 0) {
+                this.scene.remove(this.scene.children[0]);
+            }
+            
+            // Add ambient light
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
+            ambientLight.name = "EmergencyAmbientLight";
+            this.scene.add(ambientLight);
+            
+            // Add a visible object to the scene - use a wireframe cube for performance
+            const geometry = new THREE.BoxGeometry(30, 30, 30);
+            const material = new THREE.MeshBasicMaterial({ 
+                color: 0xff0000,
+                wireframe: true
+            });
+            const cube = new THREE.Mesh(geometry, material);
+            cube.name = "EmergencyCube";
+            this.scene.add(cube);
+            
+            // Add a rotating animation to make it obvious the scene is working
+            const animateCube = () => {
+                if (!cube) return;
+                
+                cube.rotation.x += 0.01;
+                cube.rotation.y += 0.01;
+                
+                // Request next frame
+                requestAnimationFrame(animateCube);
+            };
+            
+            // Start cube animation
+            animateCube();
             
             // Add text to indicate emergency mode
             const message = document.createElement('div');
@@ -2012,12 +2229,39 @@ class Game {
             message.style.color = 'white';
             message.style.fontFamily = 'Arial, sans-serif';
             message.style.fontSize = '16px';
-            message.style.zIndex = '101';
-            message.textContent = 'Emergency Mode: Game initialized with minimal features. Refresh to try again.';
+            message.style.zIndex = '10000';
+            message.style.backgroundColor = 'rgba(0,0,0,0.7)';
+            message.style.padding = '10px';
+            message.style.borderRadius = '5px';
+            message.textContent = 'Emergency Mode: Game initialized with minimal features. Try refreshing the page.';
             document.body.appendChild(message);
             
-            // Force render
+            // CRITICAL FIX: Force multiple renders to ensure visibility
             this.renderer.render(this.scene, this.camera);
+            
+            // Schedule additional renders
+            setTimeout(() => this.renderer.render(this.scene, this.camera), 100);
+            setTimeout(() => this.renderer.render(this.scene, this.camera), 500);
+            setTimeout(() => this.renderer.render(this.scene, this.camera), 1000);
+            
+            // Set up a continuous rendering loop specific to emergency mode
+            const emergencyRender = () => {
+                if (!this.renderer || !this.scene || !this.camera) return;
+                
+                // Rotate camera around center
+                if (this.camera) {
+                    const time = Date.now() * 0.001;
+                    this.camera.position.x = Math.sin(time) * 50;
+                    this.camera.position.z = Math.cos(time) * 50;
+                    this.camera.lookAt(0, 0, 0);
+                }
+                
+                this.renderer.render(this.scene, this.camera);
+                requestAnimationFrame(emergencyRender);
+            };
+            
+            // Start emergency render loop
+            emergencyRender();
             
             // Set as initialized and start animation loop
             this.initialized = true;
