@@ -2,18 +2,70 @@ import * as THREE from 'three';
 
 export class UIManager {
     constructor(spacecraft, gameWorld) {
-        this.spacecraft = spacecraft;
-        this.gameWorld = gameWorld;
-        this.score = 0;
-        this.elements = {};
-        this.hudElements = {};
-        this.isInitialized = false;
-        this.currentSector = null;
-        this.onPlayerDeath = null; // Callback for death events
-        this.isPausedState = false; // Add a paused state flag
-        
-        // Initialize UI
-        this.initializeUI();
+        try {
+            // Initialize with safe defaults
+            this.spacecraft = spacecraft || null;
+            this.gameWorld = gameWorld || null;
+            this.score = 0;
+            this.elements = {};
+            this.hudElements = {
+                // Default empty properties to prevent "of undefined" errors
+                notificationArea: null,
+                healthBar: null,
+                healthValue: null,
+                shieldBar: null,
+                shieldValue: null,
+                energyBar: null,
+                energyValue: null,
+                speedValue: null,
+                scoreValue: null,
+                sectorName: null,
+                sectorDifficulty: null,
+                sectorInfo: null,
+                planetCount: null,
+                alienCount: null,
+                minimapCanvas: null
+            };
+            this.isInitialized = false;
+            this.currentSector = null;
+            this.prevSector = null;
+            this.onPlayerDeath = null; // Callback for death events
+            this.isPausedState = false; // Add a paused state flag
+            
+            // Initialize UI
+            this.initializeUI();
+            
+            console.log('UIManager initialized successfully');
+        } catch (error) {
+            console.error('Failed to initialize UIManager:', error);
+            // Create fallback minimal UI
+            this.createFallbackUI();
+        }
+    }
+    
+    createFallbackUI() {
+        try {
+            // Create minimal UI that won't crash the game
+            this.container = document.createElement('div');
+            this.container.className = 'game-ui fallback';
+            document.body.appendChild(this.container);
+            
+            const errorMsg = document.createElement('div');
+            errorMsg.className = 'ui-error-message';
+            errorMsg.textContent = 'UI System Error - Limited Functionality';
+            this.container.appendChild(errorMsg);
+            
+            // Ensure minimal required elements exist
+            this.hudElements = {
+                notificationArea: document.createElement('div')
+            };
+            this.hudElements.notificationArea.className = 'notification-area';
+            this.container.appendChild(this.hudElements.notificationArea);
+            
+            this.isInitialized = true;
+        } catch (e) {
+            console.error('Even fallback UI failed to initialize:', e);
+        }
     }
     
     initializeUI() {
@@ -749,85 +801,115 @@ export class UIManager {
     }
     
     updateSectorInfo(currentSector) {
-        if (!currentSector || !currentSector.name) return;
-        
-        // Store current sector
-        this.currentSector = currentSector;
-        
-        // Update sector information
-        this.hudElements.sectorName.textContent = currentSector.name.toUpperCase();
-        
-        // Determine sector type and danger
-        let sectorType = 'Unknown';
-        let dangerLevel = 'Unknown';
-        
-        switch (currentSector.name) {
-            case 'origin':
-                sectorType = 'Home Sector';
-                dangerLevel = 'Low';
-                break;
-            case 'alpha':
-                sectorType = 'Exploration Zone';
-                dangerLevel = 'Low-Medium';
-                break;
-            case 'beta':
-                sectorType = 'Asteroid Field';
-                dangerLevel = 'Medium';
-                break;
-            case 'gamma':
-                sectorType = 'Hostile Territory';
-                dangerLevel = 'High';
-                break;
-            case 'delta':
-                sectorType = 'Alien Stronghold';
-                dangerLevel = 'Extreme';
-                break;
-            default:
-                sectorType = 'Uncharted Space';
-                dangerLevel = 'Unknown';
-        }
-        
-        this.hudElements.sectorType.textContent = sectorType;
-        this.hudElements.sectorDanger.textContent = dangerLevel;
-        
-        // Color-code danger level
-        if (dangerLevel === 'Low') {
-            this.hudElements.sectorDanger.style.color = '#00ff66'; // Green
-        } else if (dangerLevel === 'Low-Medium' || dangerLevel === 'Medium') {
-            this.hudElements.sectorDanger.style.color = '#ffcc00'; // Yellow
-        } else if (dangerLevel === 'High') {
-            this.hudElements.sectorDanger.style.color = '#ff9500'; // Orange
-        } else if (dangerLevel === 'Extreme') {
-            this.hudElements.sectorDanger.style.color = '#ff3366'; // Red
-        } else {
-            this.hudElements.sectorDanger.style.color = '#8af7ff'; // Default blue
-        }
-        
-        // Count objects in sector
-        let planetCount = 0;
-        let alienCount = 0;
-        
-        if (this.gameWorld) {
-            // Count planets in this sector
-            planetCount = this.gameWorld.planets.filter(planet => {
-                return planet.position.distanceTo(currentSector.sector.center) <= currentSector.sector.radius;
-            }).length;
+        try {
+            // Default values if something goes wrong
+            let sectorName = "Unknown";
+            let sectorDifficulty = 0;
+            let planetCount = 0;
+            let alienCount = 0;
             
-            // Count alien ships in this sector
-            alienCount = this.gameWorld.alienShips.filter(alien => {
-                return alien.position.distanceTo(currentSector.sector.center) <= currentSector.sector.radius;
-            }).length;
+            // Handle undefined or null sector
+            if (!currentSector || !currentSector.sector) {
+                sectorName = "Deep Space";
+                
+                // Set HUD with default values
+                if (this.hudElements) {
+                    if (this.hudElements.sectorName) this.hudElements.sectorName.textContent = sectorName;
+                    if (this.hudElements.sectorDifficulty) this.hudElements.sectorDifficulty.textContent = "N/A";
+                    if (this.hudElements.sectorPlanets) this.hudElements.sectorPlanets.textContent = planetCount;
+                    if (this.hudElements.sectorAliens) this.hudElements.sectorAliens.textContent = alienCount;
+                }
+                return;
+            }
+            
+            sectorName = currentSector.name || "Unknown Sector";
+            sectorDifficulty = currentSector.sector.difficulty || 0;
+            
+            // Update HUD sector name
+            if (this.hudElements && this.hudElements.sectorName) {
+                this.hudElements.sectorName.textContent = sectorName;
+            }
+            
+            // Update difficulty indicator (1-5 stars)
+            if (this.hudElements && this.hudElements.sectorDifficulty) {
+                this.hudElements.sectorDifficulty.textContent = "★".repeat(sectorDifficulty);
+            }
+            
+            // Count objects in this sector
+            if (this.gameWorld) {
+                // Check the center and radius are valid
+                const center = (currentSector.sector && currentSector.sector.position) ? 
+                    currentSector.sector.position : new THREE.Vector3(0, 0, 0);
+                const radius = (currentSector.sector && typeof currentSector.sector.radius === 'number') ? 
+                    currentSector.sector.radius : 1000;
+                
+                // Check for planets - safely count them
+                if (this.gameWorld.planets && Array.isArray(this.gameWorld.planets)) {
+                    try {
+                        planetCount = this.gameWorld.planets.filter(planet => {
+                            // Defensive check for valid planet
+                            if (planet && planet.position) {
+                                return planet.position.distanceTo(center) <= radius;
+                            }
+                            return false;
+                        }).length;
+                    } catch (err) {
+                        console.warn("Error counting planets in sector:", err);
+                    }
+                }
+                
+                // Check all possible alien ship array names to be safe
+                const alienArrays = [
+                    this.gameWorld.aliens,
+                    this.gameWorld.alienShips,
+                    this.gameWorld.enemies
+                ];
+                
+                // Try each possible array name
+                for (const aliens of alienArrays) {
+                    if (aliens && Array.isArray(aliens)) {
+                        try {
+                            alienCount = aliens.filter(alien => {
+                                // Defensive check for valid alien
+                                if (alien && alien.position) {
+                                    return alien.position.distanceTo(center) <= radius;
+                                }
+                                return false;
+                            }).length;
+                            
+                            // If we found aliens, no need to check other arrays
+                            if (alienCount > 0) {
+                                break;
+                            }
+                        } catch (err) {
+                            console.warn("Error counting aliens in one array:", err);
+                            // Continue with other arrays
+                        }
+                    }
+                }
+            }
+            
+            // Safely update HUD with counted objects
+            if (this.hudElements) {
+                if (this.hudElements.sectorPlanets) this.hudElements.sectorPlanets.textContent = planetCount;
+                if (this.hudElements.sectorAliens) this.hudElements.sectorAliens.textContent = alienCount;
+            }
+            
+            // Update minimap if it exists
+            if (this.updateMinimap && typeof this.updateMinimap === 'function') {
+                try {
+                    this.updateMinimap();
+                } catch (err) {
+                    console.warn("Error updating minimap:", err);
+                }
+            }
+        } catch (error) {
+            console.warn("Error in updateSectorInfo:", error);
         }
-        
-        this.hudElements.sectorPlanets.textContent = planetCount;
-        this.hudElements.sectorAliens.textContent = alienCount;
-        
-        // Update minimap for this sector
-        this.updateMinimap(currentSector);
     }
     
-    updateMinimap(currentSector) {
-        if (!this.minimapContext || !currentSector || !currentSector.sector) return;
+    updateMinimap() {
+        if (!this.minimapContext || !this.currentSector || !this.currentSector.sector) return;
         
         const ctx = this.minimapContext;
         const canvas = this.hudElements.minimapCanvas;
@@ -838,7 +920,7 @@ export class UIManager {
         ctx.clearRect(0, 0, width, height);
         
         // Draw sector boundary
-        const sectorRadius = currentSector.sector.radius;
+        const sectorRadius = this.currentSector.sector.radius;
         const scale = Math.min(width, height) / (sectorRadius * 2.2); // Scale with some margin
         
         // Sector center on canvas
@@ -856,15 +938,15 @@ export class UIManager {
         ctx.fillStyle = '#8af7ff';
         ctx.font = '10px Orbitron';
         ctx.textAlign = 'center';
-        ctx.fillText(currentSector.name.toUpperCase(), centerX, 15);
+        ctx.fillText(this.currentSector.name.toUpperCase(), centerX, 15);
         
         // Draw objects in this sector
         if (this.gameWorld) {
             // Draw planets
             this.gameWorld.planets.forEach(planet => {
-                if (planet.position.distanceTo(currentSector.sector.center) <= currentSector.sector.radius) {
-                    const planetX = centerX + (planet.position.x - currentSector.sector.center.x) * scale;
-                    const planetY = centerY + (planet.position.z - currentSector.sector.center.z) * scale;
+                if (planet.position.distanceTo(this.currentSector.sector.center) <= this.currentSector.sector.radius) {
+                    const planetX = centerX + (planet.position.x - this.currentSector.sector.center.x) * scale;
+                    const planetY = centerY + (planet.position.z - this.currentSector.sector.center.z) * scale;
                     
                     // Determine color based on planet type
                     let color = '#8af7ff';
@@ -889,9 +971,9 @@ export class UIManager {
             
             // Draw alien ships
             this.gameWorld.alienShips.forEach(alien => {
-                if (alien.position.distanceTo(currentSector.sector.center) <= currentSector.sector.radius) {
-                    const alienX = centerX + (alien.position.x - currentSector.sector.center.x) * scale;
-                    const alienY = centerY + (alien.position.z - currentSector.sector.center.z) * scale;
+                if (alien.position.distanceTo(this.currentSector.sector.center) <= this.currentSector.sector.radius) {
+                    const alienX = centerX + (alien.position.x - this.currentSector.sector.center.x) * scale;
+                    const alienY = centerY + (alien.position.z - this.currentSector.sector.center.z) * scale;
                     
                     // Draw alien
                     ctx.beginPath();
@@ -906,8 +988,8 @@ export class UIManager {
         }
         
         // Draw player position
-        const playerRelativeX = this.spacecraft.position.x - currentSector.sector.center.x;
-        const playerRelativeZ = this.spacecraft.position.z - currentSector.sector.center.z;
+        const playerRelativeX = this.spacecraft.position.x - this.currentSector.sector.center.x;
+        const playerRelativeZ = this.spacecraft.position.z - this.currentSector.sector.center.z;
         
         const playerX = centerX + playerRelativeX * scale;
         const playerY = centerY + playerRelativeZ * scale;
@@ -923,16 +1005,36 @@ export class UIManager {
     }
     
     showNotification(message, type = '') {
-        const notification = document.createElement('div');
-        notification.className = `notification ${type}`;
-        notification.textContent = message;
-        
-        this.hudElements.notificationArea.appendChild(notification);
-        
-        // Remove after animation completes
-        setTimeout(() => {
-            notification.remove();
-        }, 3000);
+        try {
+            if (!message) {
+                console.warn('UIManager: Attempted to show notification with empty message');
+                return;
+            }
+            
+            if (!this.hudElements || !this.hudElements.notificationArea) {
+                console.warn('UIManager: Cannot show notification, notification area not initialized');
+                return;
+            }
+            
+            const notification = document.createElement('div');
+            notification.className = `notification ${type || ''}`;
+            notification.textContent = message.toString();
+            
+            this.hudElements.notificationArea.appendChild(notification);
+            
+            // Remove after animation completes
+            setTimeout(() => {
+                try {
+                    if (notification && notification.parentNode) {
+                        notification.remove();
+                    }
+                } catch (e) {
+                    console.warn('UIManager: Error removing notification', e);
+                }
+            }, 3000);
+        } catch (error) {
+            console.warn('UIManager: Failed to show notification', error);
+        }
     }
     
     showRespawnMessage() {
@@ -975,24 +1077,60 @@ export class UIManager {
     }
     
     update(delta, currentSector) {
-        if (!this.isInitialized) return;
-        
-        // Update HUD elements
-        this.updateHUD();
-        
-        // Update sector information if changed
-        if (currentSector && (!this.currentSector || currentSector.name !== this.currentSector.name)) {
-            this.updateSectorInfo(currentSector);
-            this.showNotification(`ENTERING ${currentSector.name.toUpperCase()} SECTOR`);
-        }
-        
-        // Check player health
-        if (this.spacecraft.health <= 0) {
-            // Show death screen
-            this.showDeathScreen();
+        try {
+            if (!this.isInitialized) return;
             
-            // Reset player health to prevent multiple death screens
-            this.spacecraft.health = 0.1;
+            // Update HUD elements with defensive coding
+            try {
+                if (this.updateHUD && typeof this.updateHUD === 'function') {
+                    this.updateHUD();
+                }
+            } catch (hudError) {
+                console.error("Error updating HUD:", hudError);
+            }
+            
+            // Update sector information if changed
+            try {
+                // Store current sector for reference
+                const prevSector = this.currentSector;
+                this.currentSector = currentSector;
+                
+                // Safely get sector names with fallbacks
+                const currentName = currentSector && currentSector.name ? currentSector.name : "unknown";
+                const prevName = prevSector && prevSector.name ? prevSector.name : "";
+                
+                if (currentSector && (!prevSector || currentName !== prevName)) {
+                    // Update sector info
+                    this.updateSectorInfo(currentSector);
+                    
+                    // Show notification if we have a valid name
+                    if (currentName && currentName !== "unknown") {
+                        try {
+                            this.showNotification(`ENTERING ${currentName.toUpperCase()} SECTOR`);
+                        } catch (notifyError) {
+                            console.warn("Error showing sector notification:", notifyError);
+                        }
+                    }
+                }
+            } catch (sectorError) {
+                console.error("Error handling sector update:", sectorError);
+            }
+            
+            // Check player health with safety checks
+            try {
+                if (this.spacecraft && typeof this.spacecraft.health === 'number' && this.spacecraft.health <= 0) {
+                    // Show death screen
+                    this.showDeathScreen();
+                    
+                    // Reset player health to prevent multiple death screens
+                    this.spacecraft.health = 0.1;
+                }
+            } catch (healthError) {
+                console.error("Error checking player health:", healthError);
+            }
+        } catch (error) {
+            console.error("Critical error in UI update:", error);
+            // Don't rethrow - UI errors shouldn't crash the game
         }
     }
     
