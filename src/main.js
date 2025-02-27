@@ -201,7 +201,7 @@ class Game {
             this.setupLoadingScreenReferences();
             
             // Initialize Three.js
-            this.initThree();
+        this.initThree();
             
             // Initialize physics system
             this.initPhysics();
@@ -218,7 +218,7 @@ class Game {
             // Start animation loop
             if (!this.isRunning) {
                 this.isRunning = true;
-                this.animate();
+        this.animate();
                 console.log("Animation loop started");
             }
             
@@ -255,9 +255,9 @@ class Game {
             console.log("Initializing Three.js...");
             
             // Create scene with black background
-            this.scene = new THREE.Scene();
-            this.scene.background = new THREE.Color(0x000000);
-            
+        this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color(0x000000);
+        
             // PERFORMANCE: Enable frustum culling
             this.scene.frustumCulled = true;
             
@@ -428,7 +428,7 @@ class Game {
         
         if (!isLowEndDevice) {
             // Add directional light (more expensive) only for high-end devices
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
             directionalLight.position.set(1, 1, 1);
             directionalLight.castShadow = true;
             
@@ -438,7 +438,7 @@ class Game {
             directionalLight.shadow.camera.near = 0.5;
             directionalLight.shadow.camera.far = 500;
             
-            this.scene.add(directionalLight);
+        this.scene.add(directionalLight);
         } else {
             // Add a simple directional light without shadows for low-end devices
             const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
@@ -2585,7 +2585,7 @@ class Game {
                 
                 // Update renderer size
                 if (this.renderer) {
-                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
                 }
             }
             
@@ -2890,11 +2890,11 @@ class Game {
                         sphere.rotation.x += 0.01;
                         sphere.rotation.y += 0.01;
                     }
-                    
-                    // Render the scene
+        
+        // Render the scene
                     if (this.renderer && this.scene && this.camera) {
                         try {
-                            this.renderer.render(this.scene, this.camera);
+        this.renderer.render(this.scene, this.camera);
                         } catch (renderError) {
                             console.error("Error in emergency render:", renderError);
                         }
@@ -4038,3 +4038,240 @@ setTimeout(() => {
     showEmergencyNotification("Emergency Navigation System activated", 'info');
     
 }, 2000); // Wait 2 seconds before setting up
+
+// Add this after the emergency navigation system code
+
+// Create planets and objects directly
+setTimeout(() => {
+    console.log("Creating emergency solar system...");
+    
+    try {
+        // Try to get the game instance
+        const game = window.game;
+        
+        if (!game) {
+            console.error("Game not available for creating emergency solar system");
+            showEmergencyNotification("Cannot create solar system: Game not initialized", "error");
+            return;
+        }
+        
+        // Check if THREE is available
+        if (typeof THREE === 'undefined') {
+            console.error("THREE.js not available for creating emergency solar system");
+            showEmergencyNotification("Cannot create solar system: THREE.js not available", "error");
+            return;
+        }
+        
+        // Create a minimal solar system if one doesn't exist
+        if (!game.gameWorld || !game.gameWorld.planets || game.gameWorld.planets.length === 0) {
+            console.log("No planets found, creating emergency solar system");
+            
+            // Create a scene if it doesn't exist
+            if (!game.scene) {
+                console.error("Scene not available for creating emergency solar system");
+                showEmergencyNotification("Cannot create solar system: Scene not available", "error");
+                return;
+            }
+            
+            // Create a minimal solar system
+            const createPlanet = (name, position, radius, color) => {
+                // Create a simple sphere for the planet
+                const geometry = new THREE.SphereGeometry(radius, 32, 32);
+                const material = new THREE.MeshBasicMaterial({ color: color });
+                const planet = new THREE.Mesh(geometry, material);
+                planet.position.copy(position);
+                planet.name = name;
+                
+                // Add to scene
+                game.scene.add(planet);
+                
+                return planet;
+            };
+            
+            // Initialize planets array if it doesn't exist
+            if (!game.gameWorld) {
+                game.gameWorld = {};
+            }
+            
+            if (!game.gameWorld.planets) {
+                game.gameWorld.planets = [];
+            }
+            
+            // Create the Sun
+            const sun = createPlanet("Sun", new THREE.Vector3(0, 0, 0), 300, 0xffff00);
+            game.gameWorld.planets.push(sun);
+            
+            // Create planets
+            const planets = [
+                { name: "Mercury", distance: 600, radius: 30, color: 0xaaaaaa },
+                { name: "Venus", distance: 800, radius: 60, color: 0xffcc88 },
+                { name: "Earth", distance: 1000, radius: 70, color: 0x4444ff },
+                { name: "Mars", distance: 1300, radius: 50, color: 0xff4444 },
+                { name: "Jupiter", distance: 1800, radius: 150, color: 0xffaa44 },
+                { name: "Saturn", distance: 2300, radius: 120, color: 0xdddd88 },
+                { name: "Uranus", distance: 2700, radius: 90, color: 0x88ffff },
+                { name: "Neptune", distance: 3000, radius: 85, color: 0x4444ff }
+            ];
+            
+            planets.forEach(planetData => {
+                // Calculate position based on distance from sun
+                const angle = Math.random() * Math.PI * 2; // Random angle around the sun
+                const x = Math.cos(angle) * planetData.distance;
+                const z = Math.sin(angle) * planetData.distance;
+                const position = new THREE.Vector3(x, 0, z);
+                
+                // Create the planet
+                const planet = createPlanet(
+                    planetData.name,
+                    position,
+                    planetData.radius,
+                    planetData.color
+                );
+                
+                game.gameWorld.planets.push(planet);
+                console.log(`Created planet: ${planetData.name} at position ${x}, 0, ${z}`);
+            });
+            
+            // Create Earth's moon
+            const earth = game.gameWorld.planets.find(planet => planet.name === "Earth");
+            if (earth) {
+                const moonPosition = new THREE.Vector3(
+                    earth.position.x + 100,
+                    earth.position.y,
+                    earth.position.z + 100
+                );
+                
+                const moon = createPlanet("Moon", moonPosition, 20, 0xcccccc);
+                game.gameWorld.planets.push(moon);
+                console.log("Created Earth's moon");
+            }
+            
+            // Create a mothership near Earth
+            if (earth) {
+                const mothershipPosition = new THREE.Vector3(
+                    earth.position.x + 300,
+                    earth.position.y + 100,
+                    earth.position.z + 300
+                );
+                
+                // Create a simple box for the mothership
+                const geometry = new THREE.BoxGeometry(200, 50, 400);
+                const material = new THREE.MeshBasicMaterial({ color: 0x888888 });
+                const mothership = new THREE.Mesh(geometry, material);
+                mothership.position.copy(mothershipPosition);
+                mothership.name = "Mothership";
+                
+                // Add to scene
+                game.scene.add(mothership);
+                
+                // Initialize motherships array if it doesn't exist
+                if (!game.gameWorld.motherships) {
+                    game.gameWorld.motherships = [];
+                }
+                
+                game.gameWorld.motherships.push(mothership);
+                console.log("Created mothership near Earth");
+            }
+            
+            // Create a wormhole
+            const wormholePosition = new THREE.Vector3(2000, 0, 2000);
+            const wormholeGeometry = new THREE.TorusGeometry(100, 30, 16, 100);
+            const wormholeMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0x8800ff,
+                transparent: true,
+                opacity: 0.7
+            });
+            const wormhole = new THREE.Mesh(wormholeGeometry, wormholeMaterial);
+            wormhole.position.copy(wormholePosition);
+            wormhole.name = "Wormhole";
+            
+            // Add to scene
+            game.scene.add(wormhole);
+            
+            // Initialize anomalies array if it doesn't exist
+            if (!game.gameWorld.anomalies) {
+                game.gameWorld.anomalies = [];
+            }
+            
+            game.gameWorld.anomalies.push(wormhole);
+            console.log("Created wormhole");
+            
+            // Create an alien ship
+            const alienPosition = new THREE.Vector3(-1500, 200, -1500);
+            const alienGeometry = new THREE.ConeGeometry(50, 100, 8);
+            const alienMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const alienShip = new THREE.Mesh(alienGeometry, alienMaterial);
+            alienShip.position.copy(alienPosition);
+            alienShip.name = "Alien Ship";
+            
+            // Add to scene
+            game.scene.add(alienShip);
+            
+            // Initialize aliens array if it doesn't exist
+            if (!game.gameWorld.aliens) {
+                game.gameWorld.aliens = [];
+            }
+            
+            game.gameWorld.aliens.push(alienShip);
+            console.log("Created alien ship");
+            
+            showEmergencyNotification("Emergency solar system created", "info");
+        } else {
+            console.log("Solar system already exists with " + game.gameWorld.planets.length + " planets");
+        }
+        
+        // Fix inverted controls if spacecraft exists
+        if (game.spacecraft) {
+            // Override the accelerate method to fix inverted controls
+            const originalAccelerate = game.spacecraft.accelerate;
+            
+            game.spacecraft.accelerate = function(direction, delta) {
+                // Invert the direction to fix the controls
+                originalAccelerate.call(this, -direction, delta);
+            };
+            
+            // Enhance thruster effects
+            const originalUpdateEngineEffects = game.spacecraft.updateEngineEffects;
+            
+            game.spacecraft.updateEngineEffects = function(delta) {
+                // Call the original method
+                if (originalUpdateEngineEffects) {
+                    originalUpdateEngineEffects.call(this, delta);
+                }
+                
+                // Enhance thruster effects when boosting
+                const speed = this.velocity.length();
+                const enginePower = Math.min(1, speed / this.maxSpeed);
+                
+                // Make thrusters more visible
+                if (this.leftEngineGlow && this.rightEngineGlow) {
+                    // Increase opacity and scale based on speed
+                    this.leftEngineGlow.material.opacity = 0.5 + enginePower * 0.5;
+                    this.rightEngineGlow.material.opacity = 0.5 + enginePower * 0.5;
+                    
+                    // Make thrusters larger when moving fast
+                    const engineScale = 1 + enginePower * 1.5;
+                    this.leftEngineGlow.scale.set(engineScale, engineScale, 1 + enginePower * 3);
+                    this.rightEngineGlow.scale.set(engineScale, engineScale, 1 + enginePower * 3);
+                    
+                    // Change color based on speed (from orange to blue for boost)
+                    if (speed > this.maxSpeed * 0.7) {
+                        this.leftEngineGlow.material.color.setHex(0x00aaff);
+                        this.rightEngineGlow.material.color.setHex(0x00aaff);
+                    } else {
+                        this.leftEngineGlow.material.color.setHex(0xff7700);
+                        this.rightEngineGlow.material.color.setHex(0xff7700);
+                    }
+                }
+            };
+            
+            console.log("Fixed inverted controls and enhanced thruster effects");
+            showEmergencyNotification("Controls fixed and thrusters enhanced", "info");
+        } else {
+            console.log("Spacecraft not available to fix controls");
+        }
+    } catch (error) {
+        console.error("Error creating emergency solar system:", error);
+        showEmergencyNotification("Error creating solar system", "error");
+    }
+}, 3000); // Wait 3 seconds before creating the solar system
