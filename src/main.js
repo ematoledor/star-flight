@@ -3705,3 +3705,336 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     }, 5000); // Wait 5 seconds for game to initialize
 }); 
+
+// Add this at the end of the file, outside any functions
+
+// Emergency navigation system - will run regardless of game initialization
+setTimeout(() => {
+    console.log("Setting up emergency navigation system");
+    
+    // Create a navigation panel
+    const navPanel = document.createElement('div');
+    navPanel.id = 'emergency-nav-panel';
+    navPanel.style.position = 'fixed';
+    navPanel.style.top = '10px';
+    navPanel.style.left = '10px';
+    navPanel.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+    navPanel.style.color = 'white';
+    navPanel.style.padding = '15px';
+    navPanel.style.borderRadius = '5px';
+    navPanel.style.fontFamily = 'Arial, sans-serif';
+    navPanel.style.fontSize = '14px';
+    navPanel.style.zIndex = '10000';
+    navPanel.style.maxWidth = '300px';
+    navPanel.style.boxShadow = '0 0 20px rgba(0, 100, 255, 0.5)';
+    navPanel.style.border = '1px solid #00aaff';
+    
+    // Add navigation information
+    navPanel.innerHTML = `
+        <h3 style="margin-top: 0; color: #00aaff; font-size: 18px;">Star Flight Navigation</h3>
+        <div id="current-location" style="margin-top: 10px;">
+            <strong>Current Location:</strong> <span id="location-value">Unknown</span>
+        </div>
+        <div id="coordinates" style="margin-top: 5px;">
+            <strong>Coordinates:</strong> <span id="coordinates-value">0, 0, 0</span>
+        </div>
+        <div id="speed" style="margin-top: 5px;">
+            <strong>Speed:</strong> <span id="speed-value">0</span>
+        </div>
+        <div id="nearest-object" style="margin-top: 5px;">
+            <strong>Nearest Object:</strong> <span id="nearest-object-value">None</span>
+        </div>
+        <div id="planets-list" style="margin-top: 10px;">
+            <strong>Solar System:</strong>
+            <ul id="planets-list-items" style="margin: 5px 0; padding-left: 20px;">
+                <li>Sun</li>
+                <li>Mercury</li>
+                <li>Venus</li>
+                <li>Earth</li>
+                <li>Mars</li>
+                <li>Jupiter</li>
+                <li>Saturn</li>
+                <li>Uranus</li>
+                <li>Neptune</li>
+            </ul>
+        </div>
+        <div style="margin-top: 10px;">
+            <button id="scan-button" style="background: #00aaff; border: none; color: white; padding: 5px 10px; border-radius: 3px; cursor: pointer;">Scan Surroundings</button>
+            <button id="goto-earth-button" style="background: #44cc44; border: none; color: white; padding: 5px 10px; border-radius: 3px; cursor: pointer; margin-left: 5px;">Go to Earth</button>
+        </div>
+    `;
+    
+    // Add to document
+    document.body.appendChild(navPanel);
+    
+    // Make planet names clickable
+    const planetItems = navPanel.querySelectorAll('#planets-list-items li');
+    planetItems.forEach(item => {
+        item.style.cursor = 'pointer';
+        item.style.color = '#00aaff';
+        item.addEventListener('click', () => {
+            teleportToPlanet(item.textContent);
+        });
+    });
+    
+    // Add event listeners to buttons
+    document.getElementById('scan-button').addEventListener('click', () => {
+        scanSurroundings();
+    });
+    
+    document.getElementById('goto-earth-button').addEventListener('click', () => {
+        teleportToPlanet('Earth');
+    });
+    
+    // Function to teleport to a planet
+    function teleportToPlanet(planetName) {
+        try {
+            // Try to get the game instance
+            const game = window.game;
+            
+            if (!game || !game.gameWorld || !game.spacecraft) {
+                showEmergencyNotification(`Cannot teleport: Game not fully initialized`, 'error');
+                return;
+            }
+            
+            // Find the planet
+            const planet = game.gameWorld.planets.find(p => p.name === planetName);
+            
+            if (planet) {
+                // Set spacecraft position near the planet
+                game.spacecraft.position.set(
+                    planet.position.x + 200,
+                    planet.position.y + 100,
+                    planet.position.z + 200
+                );
+                
+                // Reset velocity
+                game.spacecraft.velocity.set(0, 0, 0);
+                
+                showEmergencyNotification(`Teleported to ${planetName}`, 'info');
+            } else {
+                showEmergencyNotification(`Planet ${planetName} not found`, 'error');
+            }
+        } catch (error) {
+            console.error("Error teleporting to planet:", error);
+            showEmergencyNotification("Error teleporting to planet", 'error');
+        }
+    }
+    
+    // Function to scan surroundings
+    function scanSurroundings() {
+        try {
+            // Try to get the game instance
+            const game = window.game;
+            
+            if (!game || !game.gameWorld || !game.spacecraft) {
+                showEmergencyNotification(`Cannot scan: Game not fully initialized`, 'error');
+                return;
+            }
+            
+            const position = game.spacecraft.position;
+            const scanRadius = 5000;
+            
+            console.log(`Scanning surroundings at position (${position.x.toFixed(0)}, ${position.y.toFixed(0)}, ${position.z.toFixed(0)})`);
+            
+            // Create a scan results container
+            let scanResults = [];
+            
+            // Scan for planets
+            if (game.gameWorld.planets) {
+                game.gameWorld.planets.forEach(planet => {
+                    if (!planet || !planet.position) return;
+                    
+                    const distance = position.distanceTo(planet.position);
+                    scanResults.push({
+                        type: 'planet',
+                        name: planet.name || 'Unknown Planet',
+                        distance: distance,
+                        position: planet.position.clone(),
+                        object: planet
+                    });
+                });
+            }
+            
+            // Sort results by distance
+            scanResults.sort((a, b) => a.distance - b.distance);
+            
+            // Display results
+            if (scanResults.length > 0) {
+                console.log(`Found ${scanResults.length} objects within ${scanRadius} units:`);
+                
+                let resultsHTML = `<div style="max-height: 300px; overflow-y: auto;">
+                    <h3 style="margin-top: 0; color: #00aaff;">Scan Results</h3>
+                    <p>Found ${scanResults.length} objects:</p>
+                    <ul style="padding-left: 20px;">`;
+                    
+                scanResults.forEach(result => {
+                    console.log(`- ${result.name} (${result.type}): ${result.distance.toFixed(0)} units away`);
+                    
+                    resultsHTML += `<li style="margin-bottom: 5px;">
+                        <strong>${result.name}</strong> (${result.type})<br>
+                        Distance: ${result.distance.toFixed(0)} units<br>
+                        Position: (${result.position.x.toFixed(0)}, ${result.position.y.toFixed(0)}, ${result.position.z.toFixed(0)})
+                        <button class="goto-button" data-name="${result.name}" style="background: #44cc44; border: none; color: white; padding: 2px 5px; border-radius: 3px; cursor: pointer; margin-left: 5px; font-size: 12px;">Go To</button>
+                    </li>`;
+                });
+                
+                resultsHTML += `</ul></div>`;
+                
+                // Create a modal to display results
+                const modal = document.createElement('div');
+                modal.style.position = 'fixed';
+                modal.style.top = '50%';
+                modal.style.left = '50%';
+                modal.style.transform = 'translate(-50%, -50%)';
+                modal.style.backgroundColor = 'rgba(0, 0, 0, 0.9)';
+                modal.style.color = 'white';
+                modal.style.padding = '20px';
+                modal.style.borderRadius = '10px';
+                modal.style.zIndex = '20000';
+                modal.style.maxWidth = '500px';
+                modal.style.boxShadow = '0 0 20px rgba(0, 100, 255, 0.5)';
+                
+                modal.innerHTML = resultsHTML + `
+                    <div style="text-align: center; margin-top: 15px;">
+                        <button id="close-scan-modal" style="background: #ff5555; border: none; color: white; padding: 5px 15px; border-radius: 3px; cursor: pointer;">Close</button>
+                    </div>
+                `;
+                
+                document.body.appendChild(modal);
+                
+                // Add event listener to close button
+                document.getElementById('close-scan-modal').addEventListener('click', () => {
+                    document.body.removeChild(modal);
+                });
+                
+                // Add event listeners to "Go To" buttons
+                const gotoButtons = modal.querySelectorAll('.goto-button');
+                gotoButtons.forEach(button => {
+                    button.addEventListener('click', () => {
+                        const objectName = button.getAttribute('data-name');
+                        teleportToPlanet(objectName);
+                        document.body.removeChild(modal);
+                    });
+                });
+                
+                showEmergencyNotification(`Scan complete. Found ${scanResults.length} objects.`, 'info');
+            } else {
+                console.log(`No objects found.`);
+                showEmergencyNotification("Scan complete. No objects found.", 'info');
+            }
+        } catch (error) {
+            console.error("Error scanning surroundings:", error);
+            showEmergencyNotification("Error scanning surroundings", 'error');
+        }
+    }
+    
+    // Function to show notifications
+    function showEmergencyNotification(message, type = 'info') {
+        // Check if notification container exists
+        let notificationContainer = document.getElementById('emergency-notifications');
+        
+        if (!notificationContainer) {
+            // Create notification container
+            notificationContainer = document.createElement('div');
+            notificationContainer.id = 'emergency-notifications';
+            notificationContainer.style.position = 'fixed';
+            notificationContainer.style.bottom = '20px';
+            notificationContainer.style.right = '20px';
+            notificationContainer.style.zIndex = '10001';
+            document.body.appendChild(notificationContainer);
+        }
+        
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.style.backgroundColor = type === 'error' ? 'rgba(255, 50, 50, 0.8)' : 'rgba(0, 0, 0, 0.8)';
+        notification.style.color = 'white';
+        notification.style.padding = '10px 15px';
+        notification.style.marginTop = '10px';
+        notification.style.borderRadius = '5px';
+        notification.style.boxShadow = '0 0 10px rgba(0, 0, 0, 0.2)';
+        notification.style.borderLeft = type === 'error' ? '4px solid #ff3232' : '4px solid #00aaff';
+        notification.style.fontFamily = 'Arial, sans-serif';
+        notification.style.transition = 'all 0.3s ease';
+        notification.style.opacity = '0';
+        notification.textContent = message;
+        
+        // Add to container
+        notificationContainer.appendChild(notification);
+        
+        // Animate in
+        setTimeout(() => {
+            notification.style.opacity = '1';
+        }, 10);
+        
+        // Remove after duration
+        setTimeout(() => {
+            notification.style.opacity = '0';
+            setTimeout(() => {
+                if (notification.parentNode === notificationContainer) {
+                    notificationContainer.removeChild(notification);
+                }
+            }, 300);
+        }, 3000);
+    }
+    
+    // Update navigation panel periodically
+    function updateNavPanel() {
+        try {
+            // Try to get the game instance
+            const game = window.game;
+            
+            if (!game || !game.spacecraft || !game.gameWorld) return;
+            
+            const spacecraft = game.spacecraft;
+            const gameWorld = game.gameWorld;
+            
+            // Update coordinates
+            const coords = spacecraft.position;
+            document.getElementById('coordinates-value').textContent = 
+                `${coords.x.toFixed(0)}, ${coords.y.toFixed(0)}, ${coords.z.toFixed(0)}`;
+            
+            // Update speed
+            const speed = spacecraft.velocity.length();
+            document.getElementById('speed-value').textContent = `${speed.toFixed(1)} units/s`;
+            
+            // Update current location
+            let locationInfo = gameWorld.getSectorAt ? gameWorld.getSectorAt(coords) : { name: "Unknown" };
+            document.getElementById('location-value').textContent = locationInfo.name || "Unknown";
+            
+            // Find nearest object
+            let nearestObject = null;
+            let nearestDistance = Infinity;
+            
+            // Check planets
+            if (gameWorld.planets) {
+                gameWorld.planets.forEach(planet => {
+                    if (!planet || !planet.position) return;
+                    
+                    const distance = coords.distanceTo(planet.position);
+                    if (distance < nearestDistance) {
+                        nearestObject = planet;
+                        nearestDistance = distance;
+                    }
+                });
+            }
+            
+            // Update nearest object display
+            if (nearestObject) {
+                document.getElementById('nearest-object-value').textContent = 
+                    `${nearestObject.name || "Unknown"} (${nearestDistance.toFixed(0)} units)`;
+            } else {
+                document.getElementById('nearest-object-value').textContent = "None";
+            }
+        } catch (error) {
+            console.error("Error updating navigation panel:", error);
+        }
+    }
+    
+    // Update every second
+    setInterval(updateNavPanel, 1000);
+    
+    // Show initial notification
+    showEmergencyNotification("Emergency Navigation System activated", 'info');
+    
+}, 2000); // Wait 2 seconds before setting up
