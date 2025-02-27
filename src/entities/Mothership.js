@@ -28,7 +28,7 @@ export class Mothership extends THREE.Object3D {
         
         // Add physics if available
         if (this.physicsSystem) {
-            this.physicsSystem.addStaticObject(this, this.radius);
+            this.physicsSystem.addObject(this);
         }
     }
     
