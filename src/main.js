@@ -197,8 +197,8 @@ class Game {
             // Start game loop
             this.isRunning = true;
             this.lastTime = performance.now();
-            this.animate();
-            
+        this.animate();
+        
             // Welcome message
             this.showNotification("Welcome, Explorer! You are docked at the mothership. Press L to launch and begin your journey.", 'info', 10000);
             
@@ -240,9 +240,9 @@ class Game {
             console.log("Initializing Three.js...");
             
             // Create scene with black background
-            this.scene = new THREE.Scene();
-            this.scene.background = new THREE.Color(0x000000);
-            
+        this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color(0x000000);
+        
             // Create camera with good defaults for space game
             this.camera = new THREE.PerspectiveCamera(
                 75, // Field of view
@@ -301,13 +301,13 @@ class Game {
             
             // Add stronger lights to the scene
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-            this.scene.add(ambientLight);
-            
+        this.scene.add(ambientLight);
+        
             const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
             directionalLight.position.set(1, 1, 1);
             directionalLight.name = "MainLight";
-            this.scene.add(directionalLight);
-            
+        this.scene.add(directionalLight);
+        
             // Add a bright red test sphere to verify rendering
             const geometry = new THREE.SphereGeometry(10, 32, 32); // Larger and more detailed
             const material = new THREE.MeshStandardMaterial({ 
@@ -323,7 +323,7 @@ class Game {
             // CRITICAL FIX: Add orbit controls for easier debugging
             if (typeof OrbitControls !== 'undefined') {
                 try {
-                    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
                     this.controls.enableDamping = true;
                     this.controls.dampingFactor = 0.25;
                     console.log("Orbit controls initialized");
@@ -580,7 +580,7 @@ class Game {
             
             // Hide loading screen when complete
             if (progress >= 100) {
-                setTimeout(() => {
+            setTimeout(() => {
                     if (this.loadingScreen) {
                         this.loadingScreen.style.opacity = '0';
                         this.loadingScreen.style.transition = 'opacity 0.5s ease-in-out';
@@ -596,7 +596,7 @@ class Game {
                                 
                                 console.log("Loading screen removed");
                             }
-                        }, 500);
+            }, 500);
                     }
                 }, 200);
             }
@@ -1803,15 +1803,15 @@ class Game {
         
         console.log('Input manager initialized with key bindings');
     }
-
-    // Initialize physics system
+        
+        // Initialize physics system
     initPhysics() {
         try {
             console.log("Initializing physics system...");
             
             // Create physics system
-            this.physicsSystem = new PhysicsSystem();
-            
+        this.physicsSystem = new PhysicsSystem();
+        
             // No need to define collision groups as they're already defined in the PhysicsSystem constructor
             
             console.log("Physics system initialized");
@@ -1827,23 +1827,219 @@ class Game {
         try {
             console.log("Initializing game world...");
             
-            // Create game world
-            this.gameWorld = new GameWorld(this.scene, this.loadingManager, this.physicsSystem);
-            
-            // Check if there are any motherships in the gameWorld
-            if (this.gameWorld.motherships && this.gameWorld.motherships.length > 0) {
-                this.mothership = this.gameWorld.motherships[0];
-                console.log("Mothership reference obtained");
+            // CRITICAL FIX: Ensure we have a scene before creating the game world
+            if (!this.scene) {
+                console.error("Cannot initialize game world: scene is not available");
+                this.initThree(); // Try to initialize Three.js again
+                
+                if (!this.scene) {
+                    console.error("Still no scene available, creating emergency scene");
+                    this.scene = new THREE.Scene();
+                    this.scene.background = new THREE.Color(0x000000);
+                }
             }
             
-            // Create the player's spacecraft
-            this.createPlayerSpacecraft();
+            // CRITICAL FIX: Ensure we have a physics system
+            if (!this.physicsSystem) {
+                console.warn("Physics system not initialized, creating now");
+                this.initPhysics();
+            }
             
-            console.log("Game world initialized");
-            return true;
+            // Create game world with proper error handling
+            try {
+                this.gameWorld = new GameWorld(this.scene, this.loadingManager, this.physicsSystem);
+                
+                // CRITICAL FIX: Set up callbacks for game world events
+                this.gameWorld.onSectorDiscovered = this.onSectorDiscovered.bind(this);
+                this.gameWorld.onPlanetDiscovered = this.onPlanetDiscovered.bind(this);
+                this.gameWorld.onAnomalyDiscovered = this.onAnomalyDiscovered.bind(this);
+                this.gameWorld.onEnemyDestroyed = (type, position) => {
+                    this.createExplosion(position, type === 'cruiser' ? 2 : 1);
+                    this.showNotification(`Enemy ${type} destroyed!`, 'success');
+                };
+                
+                // CRITICAL FIX: Force immediate initialization of the solar system
+                // instead of waiting for the async initialize method
+                if (typeof this.gameWorld.createSolarSystem === 'function') {
+                    console.log("Forcing immediate solar system creation");
+                    this.gameWorld.createSolarSystem().then(() => {
+                        console.log("Solar system created successfully");
+                        
+                        // Force a render to show the solar system
+                        this.renderScene();
+                        
+                        // Log the number of planets created
+                        if (this.gameWorld.planets) {
+                            console.log(`Created ${this.gameWorld.planets.length} planets in the solar system`);
+                            
+                            // Find Earth and log its position
+                            const earth = this.gameWorld.planets.find(planet => planet.name === "Earth");
+                            if (earth) {
+                                console.log("Earth position:", earth.position);
+                                
+                                // If we have a camera, point it at Earth
+                                if (this.camera) {
+                                    this.camera.position.set(
+                                        earth.position.x + 0, 
+                                        earth.position.y + 100, 
+                                        earth.position.z + 300
+                                    );
+                                    this.camera.lookAt(earth.position);
+                                    console.log("Camera positioned to view Earth");
+                                    
+                                    // Force another render with the new camera position
+                                    this.renderScene();
+                                }
+                            }
+                        }
+                        
+                        // RESTORED: Check if there are any motherships in the gameWorld
+                        if (this.gameWorld.motherships && this.gameWorld.motherships.length > 0) {
+                            this.mothership = this.gameWorld.motherships[0];
+                            console.log("Mothership reference obtained");
+                        }
+                        
+                        // RESTORED: Create the player's spacecraft
+                        this.createPlayerSpacecraft();
+                    }).catch(error => {
+                        console.error("Error creating solar system:", error);
+                        
+                        // Even if solar system creation fails, try to create spacecraft
+                        this.createPlayerSpacecraft();
+                    });
+                } else {
+                    console.warn("GameWorld.createSolarSystem method not found, using fallback");
+                    
+                    // RESTORED: Create the player's spacecraft even without solar system
+                    this.createPlayerSpacecraft();
+                }
+                
+                console.log("Game world initialized");
+            } catch (error) {
+                console.error("Error creating game world:", error);
+                
+                // CRITICAL FIX: Create a minimal game world as fallback
+                this.createMinimalGameWorld();
+            }
         } catch (error) {
-            console.error("Failed to initialize game world:", error);
-            return false;
+            console.error("Critical error in initGameWorld:", error);
+            
+            // CRITICAL FIX: Create a minimal game world as fallback
+            this.createMinimalGameWorld();
+        }
+    }
+    
+    // CRITICAL FIX: Add a method to create a minimal game world as fallback
+    createMinimalGameWorld() {
+        console.warn("Creating minimal game world as fallback");
+        
+        try {
+            // Ensure we have a scene
+            if (!this.scene) {
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x000000);
+            }
+            
+            // Add a sun
+            const sunGeometry = new THREE.SphereGeometry(100, 32, 32);
+            const sunMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0xffff00,
+                emissive: 0xffff00,
+                emissiveIntensity: 1
+            });
+            const sun = new THREE.Mesh(sunGeometry, sunMaterial);
+            sun.position.set(0, 0, 0);
+            sun.name = "Sun";
+            this.scene.add(sun);
+            
+            // Add Earth
+            const earthGeometry = new THREE.SphereGeometry(50, 32, 32);
+            const earthMaterial = new THREE.MeshBasicMaterial({ color: 0x0066ff });
+            const earth = new THREE.Mesh(earthGeometry, earthMaterial);
+            earth.position.set(500, 0, 0);
+            earth.name = "Earth";
+            this.scene.add(earth);
+            
+            // Add a light
+            const light = new THREE.PointLight(0xffffff, 1, 2000);
+            light.position.set(0, 0, 0);
+            this.scene.add(light);
+            
+            // Position camera to see Earth
+            if (this.camera) {
+                this.camera.position.set(500, 200, 500);
+                this.camera.lookAt(earth.position);
+            }
+            
+            // Force a render
+            this.renderScene();
+            
+            // Create a minimal game world structure
+            if (!this.gameWorld) {
+                console.log("Creating minimal GameWorld structure");
+                this.gameWorld = {
+                    scene: this.scene,
+                    planets: [earth],
+                    stars: [sun],
+                    sectors: [],
+                    motherships: [],
+                    enemies: [],
+                    addEntity: function(entity) {
+                        console.log("Adding entity to minimal game world:", entity);
+                        this.scene.add(entity.mesh || entity);
+                    },
+                    removeEntity: function(entity) {
+                        console.log("Removing entity from minimal game world:", entity);
+                        this.scene.remove(entity.mesh || entity);
+                    },
+                    update: function(deltaTime) {
+                        // Minimal update function
+                    }
+                };
+            }
+            
+            // Try to create the player's spacecraft
+            try {
+                this.createPlayerSpacecraft();
+                console.log("Player spacecraft created in minimal game world");
+            } catch (error) {
+                console.error("Failed to create player spacecraft:", error);
+                
+                // Create a minimal spacecraft as fallback
+                try {
+                    console.log("Creating minimal spacecraft as fallback");
+                    
+                    // Create a simple spacecraft mesh
+                    const spacecraftGeometry = new THREE.ConeGeometry(10, 30, 8);
+                    const spacecraftMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+                    const spacecraftMesh = new THREE.Mesh(spacecraftGeometry, spacecraftMaterial);
+                    
+                    // Position it near Earth
+                    spacecraftMesh.position.set(500, 0, 100);
+                    spacecraftMesh.rotation.x = Math.PI / 2;
+                    
+                    // Add it to the scene
+                    this.scene.add(spacecraftMesh);
+                    
+                    // Create a minimal spacecraft object
+                    this.spacecraft = {
+                        mesh: spacecraftMesh,
+                        position: spacecraftMesh.position,
+                        rotation: spacecraftMesh.rotation,
+                        update: function(deltaTime) {
+                            // Minimal update function
+                        }
+                    };
+                    
+                    console.log("Minimal spacecraft created successfully");
+                } catch (spacecraftError) {
+                    console.error("Failed to create even minimal spacecraft:", spacecraftError);
+                }
+            }
+            
+            console.log("Minimal game world created successfully");
+        } catch (error) {
+            console.error("Failed to create even minimal game world:", error);
         }
     }
 
@@ -1927,8 +2123,8 @@ class Game {
             return null;
         }
     }
-
-    // Initialize UI
+        
+        // Initialize UI
     initUI() {
         try {
             console.log("Initializing UI...");
@@ -2028,51 +2224,122 @@ class Game {
     // Add a new method to ensure canvas visibility
     ensureCanvasVisibility() {
         try {
+            // CRITICAL FIX: Check if document is available
+            if (!document) {
+                console.error("Document not available for canvas visibility check");
+                return;
+            }
+            
+            // CRITICAL FIX: Check if we're in a valid browsing context
+            if (typeof window === 'undefined') {
+                console.error("Window object not available - possibly in a worker context");
+                return;
+            }
+            
             // Find all canvas elements
-            const canvases = document.querySelectorAll('canvas');
+            let canvases = [];
+            try {
+                canvases = document.querySelectorAll('canvas');
+            } catch (queryError) {
+                console.warn("Error querying for canvas elements:", queryError);
+            }
             
             if (canvases.length === 0) {
                 console.warn("No canvas elements found - creating new canvas");
+                
+                // CRITICAL FIX: Check if document.body exists before creating canvas
+                if (!document.body) {
+                    console.error("Document body not available - cannot create canvas yet");
+                    
+                    // Schedule another attempt after the document might be ready
+                    setTimeout(() => {
+                        console.log("Retrying canvas visibility check after delay");
+                        this.ensureCanvasVisibility();
+                    }, 500);
+                    
+                    return;
+                }
+                
                 this.recreateCanvas();
                 return;
             }
             
             // Check if our game canvas is visible
-            let gameCanvas = document.getElementById('game-canvas');
+            let gameCanvas = null;
+            try {
+                gameCanvas = document.getElementById('game-canvas');
+            } catch (idError) {
+                console.warn("Error getting game canvas by ID:", idError);
+            }
             
             // If no game canvas, use the first canvas
             if (!gameCanvas && canvases.length > 0) {
                 gameCanvas = canvases[0];
-                gameCanvas.id = 'game-canvas';
+                try {
+                    gameCanvas.id = 'game-canvas';
+                    console.log("Set ID on existing canvas");
+                } catch (idSetError) {
+                    console.warn("Could not set ID on existing canvas:", idSetError);
+                }
             }
             
             if (gameCanvas) {
                 // Check if canvas is visible
-                const style = window.getComputedStyle(gameCanvas);
-                const isVisible = style.display !== 'none' && 
-                                 style.visibility !== 'hidden' && 
-                                 style.opacity !== '0' &&
-                                 gameCanvas.width > 0 &&
-                                 gameCanvas.height > 0;
+                let isVisible = false;
+                try {
+                    const style = window.getComputedStyle(gameCanvas);
+                    isVisible = style.display !== 'none' && 
+                               style.visibility !== 'hidden' && 
+                               style.opacity !== '0' &&
+                               gameCanvas.width > 0 &&
+                               gameCanvas.height > 0;
+                } catch (styleError) {
+                    console.warn("Error checking canvas visibility:", styleError);
+                    // Assume not visible if we can't check
+                    isVisible = false;
+                }
                 
                 if (!isVisible) {
                     console.warn("Canvas is not visible - fixing visibility");
-                    gameCanvas.style.display = 'block';
-                    gameCanvas.style.visibility = 'visible';
-                    gameCanvas.style.opacity = '1';
-                    gameCanvas.style.zIndex = '9999';
-                    
-                    // Force a render
-                    if (this.renderer && this.scene && this.camera) {
-                        this.renderer.render(this.scene, this.camera);
+                    try {
+                        // Apply critical styles directly to ensure visibility
+                        gameCanvas.style.cssText = 'display:block !important; visibility:visible !important; opacity:1 !important; z-index:9999 !important; position:fixed !important; top:0 !important; left:0 !important; width:100vw !important; height:100vh !important; background-color:#000000 !important;';
+                        
+                        // Force a render
+                        if (this.renderer && this.scene && this.camera) {
+                            this.renderer.render(this.scene, this.camera);
+                            console.log("Forced render after fixing canvas visibility");
+                        }
+                    } catch (fixError) {
+                        console.error("Failed to fix canvas visibility:", fixError);
+                        // If we can't fix it, try recreating
+                        this.recreateCanvas();
                     }
                 }
                 
                 // Check if canvas size is correct
-                if (gameCanvas.width !== window.innerWidth || gameCanvas.height !== window.innerHeight) {
+                let sizeCorrect = false;
+                try {
+                    sizeCorrect = (gameCanvas.width === window.innerWidth || gameCanvas.width === window.innerWidth * window.devicePixelRatio) && 
+                                 (gameCanvas.height === window.innerHeight || gameCanvas.height === window.innerHeight * window.devicePixelRatio);
+                } catch (sizeError) {
+                    console.warn("Error checking canvas size:", sizeError);
+                }
+                
+                if (!sizeCorrect) {
                     console.warn("Canvas size mismatch - resizing");
-                    if (this.renderer) {
-                        this.renderer.setSize(window.innerWidth, window.innerHeight, false);
+                    try {
+                        if (this.renderer) {
+                            this.renderer.setSize(window.innerWidth, window.innerHeight, false);
+                            console.log("Resized renderer to match window");
+                            
+                            // Force a render after resize
+                            if (this.scene && this.camera) {
+                                this.renderer.render(this.scene, this.camera);
+                            }
+                        }
+                    } catch (resizeError) {
+                        console.error("Failed to resize canvas:", resizeError);
                     }
                 }
             } else {
@@ -2081,12 +2348,52 @@ class Game {
             }
         } catch (error) {
             console.error("Error ensuring canvas visibility:", error);
+            
+            // CRITICAL FIX: Last resort - try to create a canvas with minimal dependencies
+            if (document && document.body) {
+                try {
+                    const lastResortCanvas = document.createElement('canvas');
+                    lastResortCanvas.width = 800;
+                    lastResortCanvas.height = 600;
+                    lastResortCanvas.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:10000;background:#000;';
+                    document.body.appendChild(lastResortCanvas);
+                    
+                    // Draw something to show it's working
+                    const ctx = lastResortCanvas.getContext('2d');
+                    if (ctx) {
+                        ctx.fillStyle = 'red';
+                        ctx.fillRect(lastResortCanvas.width/2 - 50, lastResortCanvas.height/2 - 50, 100, 100);
+                        ctx.fillStyle = 'white';
+                        ctx.font = '16px Arial';
+                        ctx.fillText('Last Resort Canvas', lastResortCanvas.width/2 - 80, lastResortCanvas.height/2 + 5);
+                    }
+                    
+                    console.log("Created last resort canvas");
+                } catch (lastResortError) {
+                    console.error("Even last resort canvas failed:", lastResortError);
+                }
+            }
         }
     }
     
     // Add a method to recreate the canvas if it's missing
     recreateCanvas() {
         try {
+            // CRITICAL FIX: Check if document and document.body exist
+            if (!document || !document.body) {
+                console.error("Cannot recreate canvas: document.body is not available");
+                
+                // Schedule another attempt after a short delay
+                setTimeout(() => {
+                    if (document && document.body) {
+                        console.log("Document body now available, retrying canvas creation");
+                        this.recreateCanvas();
+                    }
+                }, 500);
+                
+                return;
+            }
+            
             // Create a new canvas
             const canvas = document.createElement('canvas');
             canvas.id = 'game-canvas';
@@ -2100,27 +2407,114 @@ class Game {
             canvas.style.zIndex = '9999';
             canvas.style.backgroundColor = '#000000';
             
-            // Add to document body
-            document.body.appendChild(canvas);
+            // CRITICAL FIX: Check if any existing canvas with the same ID exists and remove it
+            const existingCanvas = document.getElementById('game-canvas');
+            if (existingCanvas) {
+                try {
+                    existingCanvas.parentNode.removeChild(existingCanvas);
+                    console.log("Removed existing canvas");
+                } catch (e) {
+                    console.warn("Could not remove existing canvas:", e);
+                }
+            }
+            
+            // CRITICAL FIX: More robust way to add to document
+            try {
+                document.body.appendChild(canvas);
+                console.log("Canvas successfully appended to document.body");
+            } catch (appendError) {
+                console.error("Error appending to document.body:", appendError);
+                
+                // Try alternative methods to add the canvas
+                try {
+                    // Try to add to document directly if body fails
+                    document.documentElement.appendChild(canvas);
+                    console.log("Canvas appended to document.documentElement as fallback");
+                } catch (alternativeError) {
+                    console.error("All canvas append methods failed:", alternativeError);
+                    return; // Exit if we can't add the canvas
+                }
+            }
             
             // Recreate renderer if needed
             if (!this.renderer || this.renderer.domElement !== canvas) {
                 console.log("Recreating WebGL renderer");
-                this.renderer = new THREE.WebGLRenderer({
-                    canvas: canvas,
-                    antialias: true,
-                    alpha: false,
-                    powerPreference: 'high-performance'
-                });
-                this.renderer.setSize(window.innerWidth, window.innerHeight, false);
                 
-                // Force a render
-                if (this.scene && this.camera) {
-                    this.renderer.render(this.scene, this.camera);
+                // CRITICAL FIX: Dispose of old renderer if it exists
+                if (this.renderer) {
+                    try {
+                        this.renderer.dispose();
+                        console.log("Disposed of old renderer");
+                    } catch (e) {
+                        console.warn("Could not dispose of old renderer:", e);
+                    }
+                }
+                
+                // Create new renderer with robust error handling
+                try {
+                    this.renderer = new THREE.WebGLRenderer({
+                        canvas: canvas,
+                        antialias: true,
+                        alpha: false,
+                        powerPreference: 'high-performance'
+                    });
+                    this.renderer.setSize(window.innerWidth, window.innerHeight, false);
+                    
+                    // Force a render
+                    if (this.scene && this.camera) {
+                        this.renderer.render(this.scene, this.camera);
+                        console.log("Initial render completed with new renderer");
+                    }
+                } catch (rendererError) {
+                    console.error("Failed to create WebGL renderer:", rendererError);
+                    
+                    // Try with minimal settings as fallback
+                    try {
+                        console.log("Trying fallback renderer with minimal settings");
+                        this.renderer = new THREE.WebGLRenderer({
+                            canvas: canvas,
+                            antialias: false,
+                            alpha: false,
+                            precision: 'lowp'
+                        });
+                        this.renderer.setSize(window.innerWidth, window.innerHeight, false);
+                    } catch (fallbackError) {
+                        console.error("Fallback renderer also failed:", fallbackError);
+                    }
                 }
             }
         } catch (error) {
             console.error("Error recreating canvas:", error);
+            
+            // CRITICAL FIX: Add a last-resort direct DOM manipulation
+            try {
+                const emergencyCanvas = document.createElement('canvas');
+                emergencyCanvas.id = 'emergency-canvas';
+                emergencyCanvas.width = window.innerWidth;
+                emergencyCanvas.height = window.innerHeight;
+                emergencyCanvas.style = 'position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:10000;background:#000;';
+                
+                // Try multiple insertion methods
+                if (document.body) document.body.appendChild(emergencyCanvas);
+                else if (document.documentElement) document.documentElement.appendChild(emergencyCanvas);
+                else if (document.querySelector('div')) document.querySelector('div').appendChild(emergencyCanvas);
+                
+                // Draw something on the canvas to show it's working
+                const ctx = emergencyCanvas.getContext('2d');
+                if (ctx) {
+                    ctx.fillStyle = 'red';
+                    ctx.beginPath();
+                    ctx.arc(emergencyCanvas.width/2, emergencyCanvas.height/2, 50, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = 'white';
+                    ctx.font = '20px Arial';
+                    ctx.fillText('Emergency Canvas', emergencyCanvas.width/2 - 100, emergencyCanvas.height/2 + 5);
+                }
+                
+                console.log("Created emergency canvas as last resort");
+            } catch (emergencyError) {
+                console.error("Even emergency canvas creation failed:", emergencyError);
+            }
         }
     }
 
@@ -2183,9 +2577,9 @@ class Game {
                     precision: 'lowp', // Use low precision for performance
                     powerPreference: 'high-performance'
                 });
-                this.renderer.setSize(window.innerWidth, window.innerHeight);
-            }
-            
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    
             // CRITICAL FIX: Clear the scene and add simple objects
             // This ensures we have a clean slate
             while (this.scene.children.length > 0) {
@@ -2237,7 +2631,7 @@ class Game {
             document.body.appendChild(message);
             
             // CRITICAL FIX: Force multiple renders to ensure visibility
-            this.renderer.render(this.scene, this.camera);
+        this.renderer.render(this.scene, this.camera);
             
             // Schedule additional renders
             setTimeout(() => this.renderer.render(this.scene, this.camera), 100);
