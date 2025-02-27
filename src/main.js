@@ -26,38 +26,48 @@ class Game {
     }
     
     initThree() {
-        // Create scene
-        this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x000000);
-        
-        // Create camera
-        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 20000);
-        this.camera.position.z = 15;
-        
-        // Create renderer
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(window.devicePixelRatio);
-        this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-        this.renderer.shadowMap.enabled = true;
-        document.body.appendChild(this.renderer.domElement);
-        
-        // Add post-processing for improved visuals
-        this.setupPostProcessing();
-        
-        // Add basic lighting
-        const ambientLight = new THREE.AmbientLight(0x202020);
-        this.scene.add(ambientLight);
-        
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-        directionalLight.position.set(1, 1, 1).normalize();
-        this.scene.add(directionalLight);
-        
-        // Add distant stars and galaxy backdrop
-        this.addDistantSpaceBackdrop();
-        
-        // Add temporary controls for development (will be replaced by spacecraft controls)
-        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+        try {
+            // Create scene
+            this.scene = new THREE.Scene();
+            if (!this.scene) {
+                throw new Error("Failed to create THREE.Scene");
+            }
+            this.scene.background = new THREE.Color(0x000000);
+            
+            // Create camera
+            this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 20000);
+            this.camera.position.z = 15;
+            
+            // Create renderer
+            this.renderer = new THREE.WebGLRenderer({ antialias: true });
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
+            this.renderer.setPixelRatio(window.devicePixelRatio);
+            this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+            this.renderer.shadowMap.enabled = true;
+            document.body.appendChild(this.renderer.domElement);
+            
+            // Add post-processing for improved visuals
+            this.setupPostProcessing();
+            
+            // Add basic lighting
+            const ambientLight = new THREE.AmbientLight(0x202020);
+            this.scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(1, 1, 1).normalize();
+            this.scene.add(directionalLight);
+            
+            // Add distant stars and galaxy backdrop
+            this.addDistantSpaceBackdrop();
+            
+            // Add temporary controls for development (will be replaced by spacecraft controls)
+            this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+            
+            console.log("Three.js initialized successfully");
+        } catch (error) {
+            console.error("Error initializing Three.js:", error);
+            throw error; // Re-throw to halt initialization
+        }
     }
     
     setupPostProcessing() {
@@ -210,22 +220,34 @@ class Game {
         console.log("Game world initialized");
         
         // 5. Initialize player spacecraft
-        this.spacecraft = new Spacecraft({
-            scene: this.scene,
-            camera: this.camera,
-            physicsSystem: this.physicsSystem,
-            position: new THREE.Vector3(0, 0, 0)
-        });
-        console.log("Player spacecraft initialized");
-        
-        // 6. Set up spacecraft in physics system
-        this.physicsSystem.addObject(this.spacecraft);
-        if (this.physicsSystem.collisionGroups) {
-            this.spacecraft.collisionGroup = this.physicsSystem.collisionGroups.spacecraft;
+        try {
+            if (!this.scene) {
+                console.error("Scene is null or undefined when creating spacecraft");
+            }
+            
+            this.spacecraft = new Spacecraft({
+                scene: this.scene,
+                camera: this.camera,
+                physicsSystem: this.physicsSystem,
+                position: new THREE.Vector3(0, 0, 0)
+            });
+            console.log("Player spacecraft initialized");
+            
+            // 6. Set up spacecraft in physics system
+            if (this.physicsSystem) {
+                this.physicsSystem.addObject(this.spacecraft);
+                if (this.physicsSystem.collisionGroups) {
+                    this.spacecraft.collisionGroup = this.physicsSystem.collisionGroups.spacecraft;
+                }
+            }
+            
+            // 7. Connect combat system to player
+            if (this.combatSystem) {
+                this.combatSystem.setPlayerShip(this.spacecraft);
+            }
+        } catch (error) {
+            console.error("Error initializing spacecraft:", error);
         }
-        
-        // 7. Connect combat system to player
-        this.combatSystem.setPlayerShip(this.spacecraft);
         
         // 8. Initialize UI manager
         this.uiManager = new UIManager(this.spacecraft, this.gameWorld);
@@ -342,50 +364,57 @@ class Game {
     animate() {
         requestAnimationFrame(this.animate.bind(this));
         
-        const delta = this.clock.getDelta();
-        
-        // Only update if UI is not paused
-        if (!this.uiManager || !this.uiManager.isPaused()) {
-            // Update game systems in the correct order
+        try {
+            const delta = this.clock.getDelta();
             
-            // 1. Update physics
-            if (this.physicsSystem) {
-                this.physicsSystem.update(delta);
-            }
-            
-            // 2. Update LOD manager
-            if (this.lodManager) {
-                this.lodManager.update(delta);
-            }
-            
-            // 3. Update spacecraft
-            if (this.spacecraft) {
-                this.spacecraft.update(delta);
-            }
-            
-            // 4. Update combat system
-            if (this.combatSystem) {
-                this.combatSystem.update(delta);
-            }
-            
-            // 5. Update game world
-            if (this.gameWorld) {
-                this.gameWorld.update(delta);
-            }
-        }
-        
-        // Always update UI
-        if (this.uiManager) {
-            // Get current sector for UI
-            const sectorInfo = this.gameWorld ? 
-                this.gameWorld.getSectorAt(this.spacecraft.position) : 
-                { name: 'unknown', sector: null };
+            // Only update if UI is not paused
+            if (!this.uiManager || !this.uiManager.isPaused()) {
+                // Update game systems in the correct order
                 
-            this.uiManager.update(delta, sectorInfo.sector);
+                // 1. Update physics
+                if (this.physicsSystem) {
+                    this.physicsSystem.update(delta);
+                }
+                
+                // 2. Update LOD manager
+                if (this.lodManager) {
+                    this.lodManager.update(delta);
+                }
+                
+                // 3. Update spacecraft
+                if (this.spacecraft) {
+                    this.spacecraft.update(delta);
+                }
+                
+                // 4. Update combat system
+                if (this.combatSystem) {
+                    this.combatSystem.update(delta);
+                }
+                
+                // 5. Update game world
+                if (this.gameWorld) {
+                    this.gameWorld.update(delta);
+                }
+            }
+            
+            // Always update UI
+            if (this.uiManager) {
+                // Get current sector for UI
+                const sectorInfo = this.gameWorld ? 
+                    this.gameWorld.getSectorAt(this.spacecraft.position) : 
+                    { name: 'unknown', sector: null };
+                    
+                this.uiManager.update(delta, sectorInfo.sector);
+            }
+            
+            // Render the scene
+            if (this.scene && this.camera && this.renderer) {
+                this.renderer.render(this.scene, this.camera);
+            }
+        } catch (error) {
+            console.error("Error in animation loop:", error);
+            // Don't rethrow to keep the animation loop going
         }
-        
-        // Render the scene
-        this.renderer.render(this.scene, this.camera);
     }
 }
 

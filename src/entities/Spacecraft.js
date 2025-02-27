@@ -3,11 +3,13 @@ import { VoxelModel } from '../utils/VoxelModel.js';
 import { Weapon } from '../components/Weapon.js';
 
 export class Spacecraft extends THREE.Object3D {
-    constructor(scene, camera) {
+    constructor(config) {
         super();
         
-        this.scene = scene;
-        this.camera = camera;
+        // Extract configuration options
+        this.scene = config.scene;
+        this.camera = config.camera;
+        this.physicsSystem = config.physicsSystem;
         
         // Spacecraft properties
         this.maxSpeed = 100;
@@ -19,11 +21,20 @@ export class Spacecraft extends THREE.Object3D {
         this.ammo = 100;
         this.maxAmmo = 100;
         
+        // Set initial position if provided
+        if (config.position) {
+            this.position.copy(config.position);
+        }
+        
         // Create spacecraft model
         this.createModel();
         
         // Add the spacecraft to the scene
-        this.scene.add(this);
+        if (this.scene) {
+            this.scene.add(this);
+        } else {
+            console.error("Scene is undefined in Spacecraft constructor");
+        }
         
         // Initialize weapons
         this.initWeapons();
@@ -92,6 +103,12 @@ export class Spacecraft extends THREE.Object3D {
     }
     
     initWeapons() {
+        // Check if scene exists before initializing weapons
+        if (!this.scene) {
+            console.error("Scene is undefined in initWeapons");
+            return;
+        }
+        
         // Primary weapon (laser)
         this.primaryWeapon = new Weapon({
             type: 'laser',
@@ -116,6 +133,12 @@ export class Spacecraft extends THREE.Object3D {
     }
     
     setupCamera() {
+        // Check if camera exists before setting it up
+        if (!this.camera) {
+            console.error("Camera is undefined in setupCamera");
+            return;
+        }
+        
         // Third-person camera setup
         this.cameraRig = new THREE.Object3D();
         this.add(this.cameraRig);
@@ -129,19 +152,36 @@ export class Spacecraft extends THREE.Object3D {
     }
     
     update(delta) {
-        // Update position based on velocity
-        this.position.add(this.velocity.clone().multiplyScalar(delta));
-        
-        // Update camera position to follow the spacecraft
-        this.camera.position.copy(this.worldToLocal(this.cameraRig.position));
-        this.camera.lookAt(this.position);
-        
-        // Update engine glow effects
-        this.updateEngineEffects(delta);
-        
-        // Update weapons
-        this.primaryWeapon.update(delta, this);
-        this.secondaryWeapon.update(delta, this);
+        try {
+            // Update position based on velocity
+            this.position.add(this.velocity.clone().multiplyScalar(delta));
+            
+            // Update camera position to follow the spacecraft
+            if (this.camera && this.cameraRig) {
+                try {
+                    const worldPosition = new THREE.Vector3();
+                    this.cameraRig.getWorldPosition(worldPosition);
+                    this.camera.position.copy(worldPosition);
+                    this.camera.lookAt(this.position);
+                } catch (err) {
+                    console.error("Error updating camera position:", err);
+                }
+            }
+            
+            // Update engine glow effects
+            this.updateEngineEffects(delta);
+            
+            // Update weapons
+            if (this.primaryWeapon) {
+                this.primaryWeapon.update(delta, this);
+            }
+            
+            if (this.secondaryWeapon) {
+                this.secondaryWeapon.update(delta, this);
+            }
+        } catch (error) {
+            console.error("Error in Spacecraft update:", error);
+        }
     }
     
     updateEngineEffects(delta) {

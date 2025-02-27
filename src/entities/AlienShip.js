@@ -38,6 +38,8 @@ export class AlienShip extends THREE.Object3D {
         // Add to scene
         if (this.config.scene) {
             this.config.scene.add(this);
+        } else {
+            console.error("Scene is undefined in AlienShip constructor");
         }
     }
     
