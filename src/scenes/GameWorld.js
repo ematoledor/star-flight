@@ -4,6 +4,7 @@ import { AlienShip } from '../entities/AlienShip.js';
 import { AsteroidField } from '../components/AsteroidField.js';
 import { Nebula } from '../components/Nebula.js';
 import { Mothership } from '../entities/Mothership.js';
+import { SpaceAnomaly } from '../entities/SpaceAnomaly.js';
 
 // Fallback classes in case of import failures
 class FallbackAlienShip extends THREE.Object3D {
@@ -33,10 +34,14 @@ export class GameWorld {
         this.asteroidFields = [];
         this.nebulae = [];
         this.sectors = [];
+        this.anomalies = []; // Track space anomalies
         this.currentSector = null;
         
         // Callbacks
         this.onEnemyDestroyed = null;
+        this.onSectorDiscovered = null;
+        this.onPlanetDiscovered = null;
+        this.onAnomalyDiscovered = null;
         
         // Initialize the world
         this.initialize();
@@ -49,15 +54,26 @@ export class GameWorld {
             // Generate background star field
             this.generateStarField();
             
+            // Create our solar system first
+            this.createSolarSystem();
+            
             // Create sectors with progressive loading
             this.createSectors();
             
-            // Create the main mothership carrier in the origin sector
-            this.createMothership(new THREE.Vector3(0, 200, 0));
+            // Create the main mothership carrier near Earth
+            const earth = this.planets.find(planet => planet.name === "Earth");
+            const mothershipPosition = earth ? 
+                new THREE.Vector3(earth.position.x + 300, earth.position.y + 100, earth.position.z + 300) : 
+                new THREE.Vector3(0, 200, 0);
+            
+            this.createMothership(mothershipPosition);
+            
+            // Create some wormholes and black holes
+            this.createSpaceAnomalies();
             
             // Populate initial sector (origin)
             this.populateSector({ 
-                name: "Alpha Quadrant", 
+                name: "Solar System", 
                 sector: {
                     position: new THREE.Vector3(0, 0, 0),
                     radius: 2000,
@@ -66,7 +82,7 @@ export class GameWorld {
             });
             
             // Mark origin as populated
-            const originSector = this.sectors.find(s => s.name === "Alpha Quadrant");
+            const originSector = this.sectors.find(s => s.name === "Solar System");
             if (originSector) {
                 originSector.isPopulated = true;
             }
@@ -78,10 +94,10 @@ export class GameWorld {
     createSectors() {
         // Create a few sectors of space
         this.sectors = [
-            { name: "Alpha Quadrant", position: new THREE.Vector3(0, 0, 0), difficulty: 1, radius: 1000 },
-            { name: "Beta Quadrant", position: new THREE.Vector3(5000, 0, 0), difficulty: 2, radius: 1500 },
-            { name: "Gamma Quadrant", position: new THREE.Vector3(0, 0, 5000), difficulty: 3, radius: 1800 },
-            { name: "Delta Quadrant", position: new THREE.Vector3(5000, 0, 5000), difficulty: 4, radius: 2000 }
+            { name: "Solar System", position: new THREE.Vector3(0, 0, 0), difficulty: 1, radius: 3000 },
+            { name: "Alpha Centauri", position: new THREE.Vector3(5000, 0, 0), difficulty: 2, radius: 1500 },
+            { name: "Sirius System", position: new THREE.Vector3(0, 0, 5000), difficulty: 3, radius: 1800 },
+            { name: "Orion Nebula", position: new THREE.Vector3(5000, 0, 5000), difficulty: 4, radius: 2000 }
         ];
         
         // Set initial sector
@@ -736,10 +752,46 @@ export class GameWorld {
         return { name: "Deep Space", sector: null };
     }
     
-    update(delta) {
+    update(delta, playerPosition) {
         // Update all planets
         for (const planet of this.planets) {
             planet.update(delta);
+            
+            // If planet has orbit target, update orbit
+            if (planet.orbitTarget && typeof planet.update === 'function') {
+                // Update orbit angle
+                if (!planet.orbitAngle) planet.orbitAngle = 0;
+                planet.orbitAngle += (planet.orbitSpeed || 0.1) * delta;
+                
+                // Calculate new position
+                const orbitDistance = planet.orbitDistance || 150;
+                const x = planet.orbitTarget.position.x + Math.cos(planet.orbitAngle) * orbitDistance;
+                const z = planet.orbitTarget.position.z + Math.sin(planet.orbitAngle) * orbitDistance;
+                
+                // Update position
+                planet.position.set(x, planet.orbitTarget.position.y, z);
+            }
+            
+            // Trigger planet discovery if player is nearby
+            if (playerPosition && 
+                planet.position.distanceTo(playerPosition) < 500 && 
+                this.onPlanetDiscovered) {
+                this.onPlanetDiscovered({
+                    name: planet.name || 'Unknown Planet',
+                    position: planet.position
+                });
+            }
+        }
+        
+        // Update all anomalies
+        for (const anomaly of this.anomalies) {
+            anomaly.update(delta);
+            
+            // Check for spacecraft interaction if player is nearby
+            if (playerPosition && 
+                anomaly.position.distanceTo(playerPosition) < anomaly.radius * 3) {
+                // We'll handle the actual interaction in the Game class
+            }
         }
         
         // Update all aliens
@@ -755,6 +807,18 @@ export class GameWorld {
         // Update all nebulae
         for (const nebula of this.nebulae) {
             nebula.update(delta);
+        }
+        
+        // Check if player has entered a new sector
+        if (playerPosition) {
+            const currentSectorInfo = this.getSectorAt(playerPosition);
+            
+            // If player entered a new sector, trigger discovery
+            if (currentSectorInfo && 
+                currentSectorInfo.name !== "Deep Space" && 
+                this.onSectorDiscovered) {
+                this.onSectorDiscovered(currentSectorInfo);
+            }
         }
     }
     
@@ -838,5 +902,257 @@ export class GameWorld {
             console.error("Error in getCurrentSector:", error);
             return { name: "Deep Space", difficulty: 1, sector: null };
         }
+    }
+    
+    // Create our solar system with Earth and other planets
+    createSolarSystem() {
+        console.log("Creating Solar System...");
+        
+        // Create the Sun
+        const sun = new Planet({
+            scene: this.scene,
+            position: new THREE.Vector3(0, 0, 0),
+            radius: 300,
+            textureType: 'sun',
+            rotationSpeed: 0.005,
+            gravityFactor: 5000
+        });
+        
+        sun.name = "Sun";
+        this.planets.push(sun);
+        
+        // Add physics if available
+        if (this.physicsSystem) {
+            this.physicsSystem.addObject(sun);
+            if (this.physicsSystem.collisionGroups) {
+                sun.collisionGroup = this.physicsSystem.collisionGroups.planet;
+            }
+        }
+        
+        // Create planets in order from the Sun
+        const planetData = [
+            { name: "Mercury", distance: 600, radius: 30, textureType: 'mercury', rotationSpeed: 0.01 },
+            { name: "Venus", distance: 800, radius: 60, textureType: 'venus', rotationSpeed: 0.008 },
+            { name: "Earth", distance: 1000, radius: 70, textureType: 'earth', rotationSpeed: 0.01 },
+            { name: "Mars", distance: 1300, radius: 50, textureType: 'mars', rotationSpeed: 0.009 },
+            { name: "Jupiter", distance: 1800, radius: 150, textureType: 'jupiter', rotationSpeed: 0.02 },
+            { name: "Saturn", distance: 2300, radius: 120, textureType: 'saturn', rotationSpeed: 0.018, hasRings: true },
+            { name: "Uranus", distance: 2700, radius: 90, textureType: 'ice', rotationSpeed: 0.015 },
+            { name: "Neptune", distance: 3000, radius: 85, textureType: 'ice', rotationSpeed: 0.014 }
+        ];
+        
+        // Create each planet
+        planetData.forEach(data => {
+            // Calculate position based on distance from sun
+            const angle = Math.random() * Math.PI * 2; // Random angle around the sun
+            const x = Math.cos(angle) * data.distance;
+            const z = Math.sin(angle) * data.distance;
+            const position = new THREE.Vector3(x, 0, z);
+            
+            const planet = new Planet({
+                scene: this.scene,
+                position: position,
+                radius: data.radius,
+                textureType: data.textureType,
+                rotationSpeed: data.rotationSpeed,
+                gravityFactor: data.radius * 10,
+                hasRings: data.hasRings || false
+            });
+            
+            planet.name = data.name;
+            this.planets.push(planet);
+            
+            // Add physics if available
+            if (this.physicsSystem) {
+                this.physicsSystem.addObject(planet);
+                if (this.physicsSystem.collisionGroups) {
+                    planet.collisionGroup = this.physicsSystem.collisionGroups.planet;
+                }
+            }
+            
+            console.log(`Created planet: ${data.name}`);
+        });
+        
+        // Add Earth's moon
+        const earth = this.planets.find(planet => planet.name === "Earth");
+        if (earth) {
+            const moonPosition = new THREE.Vector3(
+                earth.position.x + 100,
+                earth.position.y,
+                earth.position.z + 100
+            );
+            
+            const moon = new Planet({
+                scene: this.scene,
+                position: moonPosition,
+                radius: 20,
+                textureType: 'moon',
+                rotationSpeed: 0.005,
+                gravityFactor: 200
+            });
+            
+            moon.name = "Moon";
+            moon.orbitTarget = earth;
+            moon.orbitDistance = 150;
+            moon.orbitSpeed = 0.2;
+            
+            this.planets.push(moon);
+            
+            // Add physics if available
+            if (this.physicsSystem) {
+                this.physicsSystem.addObject(moon);
+                if (this.physicsSystem.collisionGroups) {
+                    moon.collisionGroup = this.physicsSystem.collisionGroups.planet;
+                }
+            }
+            
+            console.log("Created Earth's moon");
+        }
+    }
+    
+    // Create wormholes and black holes
+    createSpaceAnomalies() {
+        console.log("Creating space anomalies...");
+        
+        // Create a wormhole near Jupiter
+        const jupiter = this.planets.find(planet => planet.name === "Jupiter");
+        if (jupiter) {
+            const wormholePosition = new THREE.Vector3(
+                jupiter.position.x + 500,
+                jupiter.position.y,
+                jupiter.position.z + 500
+            );
+            
+            // This wormhole leads to Alpha Centauri
+            const destination = new THREE.Vector3(5000, 0, 0);
+            
+            this.createWormhole(wormholePosition, destination);
+        }
+        
+        // Create a black hole in the outer solar system
+        const blackholePosition = new THREE.Vector3(2500, 0, -2500);
+        this.createBlackhole(blackholePosition, 2);
+        
+        // Create another wormhole that leads to Orion Nebula
+        const wormholePosition = new THREE.Vector3(-2000, 0, 2000);
+        const destination = new THREE.Vector3(5000, 0, 5000);
+        this.createWormhole(wormholePosition, destination);
+    }
+    
+    // Create a wormhole
+    createWormhole(position, destination) {
+        try {
+            const wormhole = new SpaceAnomaly({
+                scene: this.scene,
+                position: position,
+                type: 'wormhole',
+                radius: 80,
+                destination: destination,
+                physicsSystem: this.physicsSystem
+            });
+            
+            wormhole.name = `Wormhole to ${this.getDestinationName(destination)}`;
+            this.anomalies.push(wormhole);
+            
+            console.log(`Created wormhole at ${position.x}, ${position.y}, ${position.z}`);
+            return wormhole;
+        } catch (error) {
+            console.error("Error creating wormhole:", error);
+            return null;
+        }
+    }
+    
+    // Create a black hole
+    createBlackhole(position, intensity = 1) {
+        try {
+            const blackhole = new SpaceAnomaly({
+                scene: this.scene,
+                position: position,
+                type: 'blackhole',
+                radius: 100,
+                intensity: intensity,
+                physicsSystem: this.physicsSystem
+            });
+            
+            blackhole.name = `Black Hole (Intensity: ${intensity})`;
+            this.anomalies.push(blackhole);
+            
+            console.log(`Created black hole at ${position.x}, ${position.y}, ${position.z}`);
+            return blackhole;
+        } catch (error) {
+            console.error("Error creating black hole:", error);
+            return null;
+        }
+    }
+    
+    // Helper method to get destination name
+    getDestinationName(position) {
+        for (const sector of this.sectors) {
+            if (position.distanceTo(sector.position) < 100) {
+                return sector.name;
+            }
+        }
+        return "Unknown Location";
+    }
+    
+    // Add this method to get nearby objects including anomalies
+    getNearbyObjects(position, radius) {
+        if (!position) return [];
+        
+        const nearbyObjects = [];
+        
+        // Check planets
+        this.planets.forEach(planet => {
+            if (planet.position.distanceTo(position) < radius) {
+                nearbyObjects.push({
+                    type: 'planet',
+                    name: planet.name || 'Unknown Planet',
+                    position: planet.position,
+                    distance: planet.position.distanceTo(position),
+                    object: planet
+                });
+            }
+        });
+        
+        // Check anomalies
+        this.anomalies.forEach(anomaly => {
+            if (anomaly.position.distanceTo(position) < radius) {
+                nearbyObjects.push({
+                    type: 'anomaly',
+                    name: anomaly.name || `${anomaly.anomalyType.charAt(0).toUpperCase() + anomaly.anomalyType.slice(1)}`,
+                    position: anomaly.position,
+                    distance: anomaly.position.distanceTo(position),
+                    anomalyType: anomaly.anomalyType,
+                    object: anomaly
+                });
+                
+                // Trigger anomaly discovery callback
+                if (this.onAnomalyDiscovered) {
+                    this.onAnomalyDiscovered({
+                        type: anomaly.anomalyType,
+                        name: anomaly.name,
+                        position: anomaly.position
+                    });
+                }
+            }
+        });
+        
+        // Check other objects (aliens, asteroids, etc.)
+        // ... existing code for other objects
+        
+        return nearbyObjects;
+    }
+    
+    // Add this method to check for anomaly interactions
+    checkAnomalyInteractions(spacecraft) {
+        if (!spacecraft) return null;
+        
+        for (const anomaly of this.anomalies) {
+            if (anomaly.isSpacecraftInRange(spacecraft)) {
+                return anomaly;
+            }
+        }
+        
+        return null;
     }
 } 
