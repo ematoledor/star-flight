@@ -724,6 +724,9 @@ class Game {
             // Complete loading
             this.updateLoadingProgress(100);
             
+            // Make sure to remove the HTML loading screen as well
+            this.removeHtmlLoadingScreen();
+            
             console.log("Game initialized successfully");
         } catch (error) {
             console.error("Error initializing game:", error);
@@ -825,17 +828,37 @@ class Game {
             
             // Hide loading screen when complete
             if (progress >= 100) {
+                // Force immediate removal of loading screen
                 setTimeout(() => {
                     if (this.loadingScreen) {
+                        // Try both methods to ensure it's removed
                         this.loadingScreen.style.opacity = '0';
-                        this.loadingScreen.style.transition = 'opacity 1s ease-in-out';
+                        this.loadingScreen.style.transition = 'opacity 0.5s ease-in-out';
+                        
+                        // Also set display none to ensure it's gone
                         setTimeout(() => {
-                            if (this.loadingScreen && this.loadingScreen.parentNode) {
-                                this.loadingScreen.parentNode.removeChild(this.loadingScreen);
+                            if (this.loadingScreen) {
+                                this.loadingScreen.style.display = 'none';
+                                
+                                // Also try removing from DOM
+                                if (this.loadingScreen.parentNode) {
+                                    this.loadingScreen.parentNode.removeChild(this.loadingScreen);
+                                }
+                                
+                                // Also try removing any other loading screens that might exist
+                                const existingLoadingScreens = document.querySelectorAll('#loading-screen, #loading');
+                                existingLoadingScreens.forEach(screen => {
+                                    screen.style.display = 'none';
+                                    if (screen.parentNode) {
+                                        screen.parentNode.removeChild(screen);
+                                    }
+                                });
+                                
+                                console.log("Loading screen removed");
                             }
-                        }, 1000);
+                        }, 500);
                     }
-                }, 500);
+                }, 200);
             }
         }
     }
@@ -870,6 +893,24 @@ class Game {
         errorMessage.appendChild(document.createElement('br'));
         errorMessage.appendChild(reloadButton);
         document.body.appendChild(errorMessage);
+    }
+    
+    // Add a method to remove the HTML loading screen
+    removeHtmlLoadingScreen() {
+        // Remove the HTML loading screen
+        const htmlLoadingScreen = document.getElementById('loading');
+        if (htmlLoadingScreen) {
+            htmlLoadingScreen.style.opacity = '0';
+            htmlLoadingScreen.style.transition = 'opacity 0.5s ease-in-out';
+            
+            setTimeout(() => {
+                htmlLoadingScreen.style.display = 'none';
+                if (htmlLoadingScreen.parentNode) {
+                    htmlLoadingScreen.parentNode.removeChild(htmlLoadingScreen);
+                }
+                console.log("HTML loading screen removed");
+            }, 500);
+        }
     }
 }
 
