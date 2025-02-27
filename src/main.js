@@ -68,57 +68,55 @@ class Game {
             // Setup loading screen
             this.setupLoadingScreenReferences();
             
-            // Create loading manager
+            // Initialize Three.js scene first
+            const threeInitialized = this.initThree();
+            if (!threeInitialized) {
+                throw new Error("Failed to initialize Three.js");
+            }
+            
+            // Add space backdrop immediately for visual feedback
+            this.addDistantSpaceBackdrop();
+            
+            // Create loading manager with better progress tracking
             this.loadingManager = new THREE.LoadingManager();
             this.loadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
                 const progress = (itemsLoaded / itemsTotal) * 100;
                 this.updateLoadingProgress(progress);
+                console.log(`Loading progress: ${progress.toFixed(2)}%`);
             };
             
             this.loadingManager.onLoad = () => {
                 console.log("All assets loaded");
                 this.updateLoadingProgress(100);
                 
-                // Remove loading screens after a short delay
-                setTimeout(() => {
-                    this.forceRemoveAllLoadingScreens();
-                    
-                    // Set initialized flag to true
-                    this.initialized = true;
-                    console.log("Game fully initialized");
-                }, 500);
+                // Initialize remaining systems
+                Promise.all([
+                    this.initPhysics(),
+                    this.initGameWorld(),
+                    this.initInputManager(),
+                    this.initUI()
+                ]).then(() => {
+                    // Remove loading screens after initialization
+                    setTimeout(() => {
+                        this.forceRemoveAllLoadingScreens();
+                        this.initialized = true;
+                        console.log("Game fully initialized");
+                        
+                        // Force a render to ensure scene is visible
+                        if (this.renderer && this.scene && this.camera) {
+                            this.renderer.render(this.scene, this.camera);
+                        }
+                    }, 500);
+                }).catch(error => {
+                    console.error("Error during initialization:", error);
+                    this.showErrorMessage("Failed to initialize game systems: " + error.message);
+                });
             };
-            
-            // Initialize Three.js scene
-            const threeInitialized = this.initThree();
-            if (!threeInitialized) {
-                throw new Error("Failed to initialize Three.js");
-            }
-            
-            // Initialize physics system
-            this.initPhysics();
-            
-            // Initialize game world
-            this.initGameWorld();
-            
-            // Initialize input manager
-            this.initInputManager();
-            
-            // Initialize UI
-            this.initUI();
-            
-            // Set up callbacks for discoveries
-            if (this.gameWorld) {
-                this.gameWorld.onSectorDiscovered = this.onSectorDiscovered.bind(this);
-                this.gameWorld.onPlanetDiscovered = this.onPlanetDiscovered.bind(this);
-                this.gameWorld.onAnomalyDiscovered = this.onAnomalyDiscovered.bind(this);
-            }
             
             // Start game loop
             this.isRunning = true;
+            this.lastTime = performance.now();
             this.animate();
-            
-            console.log("Game initialization sequence completed");
             
             // Welcome message
             this.showNotification("Welcome, Explorer! You are docked at the mothership. Press L to launch and begin your journey.", 'info', 10000);
@@ -127,15 +125,6 @@ class Game {
             setTimeout(() => {
                 this.showNotification("Use WASD to move, SPACE to boost, and SHIFT to brake. Press S to scan your surroundings.", 'info', 8000);
             }, 12000);
-            
-            // Force initialization to true after a timeout in case loading manager doesn't fire
-            setTimeout(() => {
-                if (!this.initialized) {
-                    console.log("Forcing initialization after timeout");
-                    this.initialized = true;
-                    this.forceRemoveAllLoadingScreens();
-                }
-            }, 10000);
             
             return true;
         } catch (error) {
@@ -1246,13 +1235,6 @@ class Game {
         try {
             // Skip update if game is not initialized yet
             if (!this.initialized) {
-                // Force initialization after 10 seconds if it hasn't happened
-                if (time > 10000 && !this.initializationForced) {
-                    console.warn("Game initialization taking too long, forcing continuation...");
-                    this.initialized = true;
-                    this.initializationForced = true;
-                    this.forceRemoveAllLoadingScreens();
-                }
                 return;
             }
             
@@ -1267,69 +1249,49 @@ class Game {
             // Update spacecraft (every frame)
             if (this.spacecraft) {
                 this.spacecraft.update(delta);
-                
-                // Debug spacecraft position
-                if (this.debugMode) {
-                    console.log(`Spacecraft position: ${this.spacecraft.position.x.toFixed(2)}, ${this.spacecraft.position.y.toFixed(2)}, ${this.spacecraft.position.z.toFixed(2)}`);
-                    console.log(`Spacecraft visible: ${this.spacecraft.visible}`);
-                }
             }
             
-            // Update game world (can be less frequent for distant objects)
-            if (this.gameWorld && this.frameCount % 2 === 0) { // Update every other frame
+            // Update game world (less frequently for better performance)
+            if (this.gameWorld && this.frameCount % 2 === 0) {
                 const playerPosition = this.spacecraft ? this.spacecraft.position : this.camera.position;
                 this.gameWorld.update(delta, playerPosition);
             }
             
-            // Update input (every frame)
-            if (this.inputManager) {
-                this.inputManager.update(delta);
-            }
-            
-            // Update UI (can be less frequent)
-            if (this.uiManager && this.frameCount % 3 === 0) { // Update every third frame
+            // Update UI (less frequently)
+            if (this.uiManager && this.frameCount % 3 === 0) {
                 const currentSector = this.gameWorld ? this.gameWorld.getCurrentSector() : null;
                 this.uiManager.update(delta, currentSector);
             }
             
             // Render scene
             if (this.renderer && this.scene && this.camera) {
-                // Debug camera and scene
-                console.log(`Camera position: ${this.camera.position.x.toFixed(2)}, ${this.camera.position.y.toFixed(2)}, ${this.camera.position.z.toFixed(2)}`);
-                console.log(`Scene children count: ${this.scene.children.length}`);
-                
-                this.renderer.render(this.scene, this.camera);
-            } else {
-                console.warn("Cannot render: missing renderer, scene, or camera");
-                if (!this.renderer) console.warn("Renderer is missing");
-                if (!this.scene) console.warn("Scene is missing");
-                if (!this.camera) console.warn("Camera is missing");
-            }
-            
-            // Increment frame counter
-            this.frameCount = (this.frameCount + 1) % 1000; // Reset at 1000 to avoid overflow
-            
-            // Performance monitoring
-            const endTime = performance.now();
-            const frameDuration = endTime - startTime;
-            
-            // Log performance issues
-            if (frameDuration > 16.67) { // More than 60fps budget (16.67ms)
-                if (this.debugMode) {
-                    console.warn(`Frame took ${frameDuration.toFixed(2)}ms to process (target: 16.67ms)`);
+                // Ensure camera is looking at something
+                if (!this.camera.target && this.spacecraft) {
+                    this.camera.lookAt(this.spacecraft.position);
                 }
                 
-                // Count slow frames for adaptive quality
+                try {
+                    this.renderer.render(this.scene, this.camera);
+                } catch (renderError) {
+                    console.error("Error rendering scene:", renderError);
+                }
+            }
+            
+            // Performance monitoring
+            const frameDuration = performance.now() - startTime;
+            if (frameDuration > 16.67) { // Frame took longer than 60fps budget
+                console.warn(`Long frame: ${frameDuration.toFixed(2)}ms`);
                 this.slowFrameCount++;
-                
-                // If we have too many slow frames in a row, reduce quality
                 if (this.slowFrameCount > 30) {
                     this.reduceQuality();
-                    this.slowFrameCount = 0;
                 }
             } else {
                 this.slowFrameCount = 0;
             }
+            
+            // Increment frame counter
+            this.frameCount = (this.frameCount + 1) % 1000;
+            
         } catch (error) {
             console.error("Error in update loop:", error);
         }

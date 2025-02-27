@@ -43,99 +43,63 @@ export class GameWorld {
         this.onPlanetDiscovered = null;
         this.onAnomalyDiscovered = null;
         
-        // Initialize the world
-        this.initialize();
+        // Initialize with a delay to prevent blocking
+        setTimeout(() => this.initialize(), 0);
         
         console.log("GameWorld initialized");
     }
     
-    initialize() {
+    async initialize() {
         try {
-            // Generate background star field
-            this.generateStarField();
+            console.log("Initializing game world...");
             
-            // Create our solar system first
-            this.createSolarSystem();
+            // Generate star field first for immediate visual feedback
+            await this.generateStarField();
             
-            // Create sectors with progressive loading
-            this.createSectors();
+            // Create solar system in chunks to prevent blocking
+            const tasks = [
+                this.createSolarSystem(),
+                this.createAsteroids(),
+                this.createNebulae(),
+                this.createSectors()
+            ];
             
-            // Create the main mothership carrier near Earth
-            const earth = this.planets.find(planet => planet.name === "Earth");
-            const mothershipPosition = earth ? 
-                new THREE.Vector3(earth.position.x + 300, earth.position.y + 100, earth.position.z + 300) : 
-                new THREE.Vector3(0, 200, 0);
+            // Execute tasks in parallel
+            await Promise.all(tasks.map(task => 
+                new Promise(resolve => setTimeout(() => resolve(task()), 0))
+            ));
             
-            this.createMothership(mothershipPosition);
-            
-            // Create some wormholes and black holes
-            this.createSpaceAnomalies();
-            
-            // Populate initial sector (origin)
-            this.populateSector({ 
-                name: "Solar System", 
-                sector: {
-                    position: new THREE.Vector3(0, 0, 0),
-                    radius: 2000,
-                    difficulty: 1
-                }
-            });
-            
-            // Mark origin as populated
-            const originSector = this.sectors.find(s => s.name === "Solar System");
-            if (originSector) {
-                originSector.isPopulated = true;
-            }
+            console.log("Game world initialization complete");
+            return true;
         } catch (error) {
-            console.error("Error in GameWorld initialization:", error);
+            console.error("Error initializing game world:", error);
+            return false;
         }
     }
     
-    createSectors() {
-        // Create a few sectors of space
-        this.sectors = [
-            { name: "Solar System", position: new THREE.Vector3(0, 0, 0), difficulty: 1, radius: 3000 },
-            { name: "Alpha Centauri", position: new THREE.Vector3(5000, 0, 0), difficulty: 2, radius: 1500 },
-            { name: "Sirius System", position: new THREE.Vector3(0, 0, 5000), difficulty: 3, radius: 1800 },
-            { name: "Orion Nebula", position: new THREE.Vector3(5000, 0, 5000), difficulty: 4, radius: 2000 }
-        ];
+    async createSectors() {
+        const sectorPromises = [];
+        const maxConcurrent = 5; // Limit concurrent sector creation
         
-        // Set initial sector
-        this.setActiveSector(this.sectors[0]);
-        
-        // Schedule loading of other sectors in the background
-        setTimeout(() => this.loadRemainingSectorsInBackground(), 2000);
-    }
-    
-    loadRemainingSectorsInBackground() {
-        console.log("Loading remaining sectors in background...");
-        
-        // Create a function to load sectors one at a time with smaller operations
-        const loadSector = (index) => {
-            if (index >= this.sectors.length) {
-                console.log("All sectors loaded");
-                return;
+        for (let i = 0; i < this.config.numSectors; i++) {
+            if (sectorPromises.length >= maxConcurrent) {
+                await Promise.race(sectorPromises);
+                sectorPromises.splice(0, 1);
             }
             
-            console.log(`Creating sector: ${this.sectors[index].name}`);
-            
-            // Use requestAnimationFrame to avoid setTimeout violations
-            requestAnimationFrame(() => {
-                try {
-                    this.populateSector(this.sectors[index]);
-                    
-                    // Schedule the next sector after a short delay
-                    setTimeout(() => loadSector(index + 1), 500);
-                } catch (error) {
-                    console.error(`Error loading sector ${index}:`, error);
-                    // Continue with next sector even if there's an error
-                    setTimeout(() => loadSector(index + 1), 500);
-                }
-            });
-        };
+            sectorPromises.push(
+                new Promise(resolve => {
+                    setTimeout(() => {
+                        const sector = this.createSector(i);
+                        this.sectors.push(sector);
+                        console.log(`Created sector ${i + 1}/${this.config.numSectors}`);
+                        resolve();
+                    }, 0);
+                })
+            );
+        }
         
-        // Start loading from the second sector (index 1)
-        setTimeout(() => loadSector(1), 2000);
+        await Promise.all(sectorPromises);
     }
     
     setActiveSector(sector) {
@@ -273,7 +237,7 @@ export class GameWorld {
         this.currentSector = null;
     }
     
-    generateStarField() {
+    async generateStarField() {
         // Create a star field (simple particle system)
         const geometry = new THREE.BufferGeometry();
         const vertices = [];
@@ -905,7 +869,7 @@ export class GameWorld {
     }
     
     // Create our solar system with Earth and other planets
-    createSolarSystem() {
+    async createSolarSystem() {
         console.log("Creating Solar System...");
         
         // Create the Sun
@@ -942,7 +906,7 @@ export class GameWorld {
         ];
         
         // Create each planet
-        planetData.forEach(data => {
+        for (const data of planetData) {
             // Calculate position based on distance from sun
             const angle = Math.random() * Math.PI * 2; // Random angle around the sun
             const x = Math.cos(angle) * data.distance;
@@ -971,7 +935,7 @@ export class GameWorld {
             }
             
             console.log(`Created planet: ${data.name}`);
-        });
+        }
         
         // Add Earth's moon
         const earth = this.planets.find(planet => planet.name === "Earth");
