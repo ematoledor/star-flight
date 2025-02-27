@@ -4,52 +4,141 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Star Flight Simulator</title>
-    <meta http-equiv="refresh" content="0;url=demo.html">
-    <script>
-        // Immediate JavaScript redirect for faster loading
-        window.location.href = 'demo.html';
-    </script>
     <style>
         body {
             margin: 0;
             padding: 0;
-            font-family: 'Courier New', monospace;
+            overflow: hidden;
             background-color: #000;
+            font-family: 'Courier New', monospace;
             color: #fff;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
+        }
+        
+        canvas {
+            display: block;
+        }
+        
+        #ui-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 30px;
+            height: 30px;
+            pointer-events: none;
+        }
+        
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px 20px;
+            border-radius: 5px;
             text-align: center;
         }
         
-        h1 {
+        #loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        #loading h1 {
+            font-size: 32px;
             margin-bottom: 20px;
         }
         
-        p {
-            margin-bottom: 30px;
+        #loading-bar {
+            width: 300px;
+            height: 20px;
+            background-color: #111;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 20px;
         }
         
-        a {
-            color: #0088ff;
-            text-decoration: none;
-            border: 1px solid #0088ff;
-            padding: 10px 20px;
-            transition: all 0.3s ease;
-        }
-        
-        a:hover {
+        #loading-progress {
+            height: 100%;
+            width: 0%;
             background-color: #0088ff;
-            color: #000;
+            transition: width 0.3s ease;
+        }
+        
+        .hidden {
+            display: none !important;
         }
     </style>
 </head>
 <body>
-    <div>
+    <div id="loading">
         <h1>Star Flight Simulator</h1>
-        <p>Redirecting to demo...</p>
-        <p>If you are not redirected automatically, <a href="demo.html">click here</a>.</p>
+        <div id="loading-bar">
+            <div id="loading-progress"></div>
+        </div>
+        <p>Loading game assets...</p>
     </div>
+    
+    <div id="ui-container">
+        <div id="hud">
+            <div class="hud-item">SPEED: <span id="speed">0</span> km/s</div>
+            <div class="hud-item">HEALTH: <span id="health">100</span>%</div>
+            <div class="hud-item">SHIELD: <span id="shield">100</span>%</div>
+            <div class="hud-item">ENERGY: <span id="energy">100</span>%</div>
+            <div class="hud-item">SECTOR: <span id="sector">Alpha Quadrant</span></div>
+        </div>
+        <div id="crosshair">
+            <svg width="30" height="30" viewBox="0 0 30 30">
+                <circle cx="15" cy="15" r="13" stroke="#0088ff" stroke-width="1" fill="none"/>
+                <circle cx="15" cy="15" r="2" fill="#0088ff"/>
+                <line x1="15" y1="5" x2="15" y2="10" stroke="#0088ff" stroke-width="1"/>
+                <line x1="15" y1="20" x2="15" y2="25" stroke="#0088ff" stroke-width="1"/>
+                <line x1="5" y1="15" x2="10" y2="15" stroke="#0088ff" stroke-width="1"/>
+                <line x1="20" y1="15" x2="25" y2="15" stroke="#0088ff" stroke-width="1"/>
+            </svg>
+        </div>
+        <div id="instructions">
+            <p>WASD or Arrow Keys: Move | Mouse: Aim | Left Click: Fire | U: Upgrades | ESC: Pause</p>
+        </div>
+    </div>
+
+    <!-- Main game script -->
+    <script type="module" src="src/main.js"></script>
+
+    <noscript>
+        <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; color: #fff; display: flex; justify-content: center; align-items: center; text-align: center; padding: 20px;">
+            <div>
+                <h1>JavaScript Required</h1>
+                <p>Please enable JavaScript to run this application.</p>
+            </div>
+        </div>
+    </noscript>
 </body>
 </html> 
