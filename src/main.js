@@ -78,6 +78,12 @@ class Game {
                 // Remove loading screens after a short delay
                 setTimeout(() => {
                     this.forceRemoveAllLoadingScreens();
+                    
+                    // Run diagnostic after loading is complete
+                    this.logGameState();
+                    
+                    // Force a camera reset to ensure we can see the scene
+                    this.resetCamera();
                 }, 500);
             };
             
@@ -116,54 +122,74 @@ class Game {
             setTimeout(() => {
                 this.showNotification("Use WASD to move, SPACE to boost, and SHIFT to brake. Press S to scan your surroundings.", 'info', 8000);
             }, 12000);
+            
+            // Run diagnostic immediately as well
+            this.logGameState();
         } catch (error) {
             console.error("Error initializing game:", error);
+            this.showErrorMessage("Error initializing game: " + error.message);
         }
     }
     
-    initThree() {
-        try {
-            // Create scene
-            this.scene = new THREE.Scene();
-            if (!this.scene) {
-                throw new Error("Failed to create THREE.Scene");
-            }
-            this.scene.background = new THREE.Color(0x000000);
-            
-            // Create camera
-            this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 20000);
-            this.camera.position.z = 15;
-            
-            // Create renderer
-            this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    initThreeJS() {
+        console.log("Initializing Three.js...");
+        
+        // Create scene
+        this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color(0x000000);
+        
+        // Add fog for depth perception
+        this.scene.fog = new THREE.FogExp2(0x000000, 0.00005);
+        
+        // Create camera
+        this.camera = new THREE.PerspectiveCamera(
+            75, // Field of view
+            window.innerWidth / window.innerHeight, // Aspect ratio
+            0.1, // Near clipping plane
+            20000 // Far clipping plane
+        );
+        this.camera.position.set(0, 200, 500);
+        this.camera.lookAt(0, 0, 0);
+        
+        // Create renderer
+        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.shadowMap.enabled = true;
+        
+        // Add renderer to DOM
+        document.body.appendChild(this.renderer.domElement);
+        
+        // Add orbit controls for debugging
+        this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+        this.controls.enableDamping = true;
+        this.controls.dampingFactor = 0.05;
+        this.controls.screenSpacePanning = false;
+        this.controls.minDistance = 10;
+        this.controls.maxDistance = 10000;
+        this.controls.maxPolarAngle = Math.PI;
+        
+        // Add ambient light
+        const ambientLight = new THREE.AmbientLight(0x404040);
+        this.scene.add(ambientLight);
+        
+        // Add directional light (sun)
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(1000, 1000, 1000);
+        directionalLight.castShadow = true;
+        this.scene.add(directionalLight);
+        
+        // Add distant space backdrop
+        this.addDistantSpaceBackdrop();
+        
+        // Add window resize handler
+        window.addEventListener('resize', () => {
+            this.camera.aspect = window.innerWidth / window.innerHeight;
+            this.camera.updateProjectionMatrix();
             this.renderer.setSize(window.innerWidth, window.innerHeight);
-            this.renderer.setPixelRatio(window.devicePixelRatio);
-            this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-            this.renderer.shadowMap.enabled = true;
-            document.body.appendChild(this.renderer.domElement);
-            
-            // Add post-processing for improved visuals
-            this.setupPostProcessing();
-            
-            // Add basic lighting
-            const ambientLight = new THREE.AmbientLight(0x202020);
-            this.scene.add(ambientLight);
-            
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-            directionalLight.position.set(1, 1, 1).normalize();
-            this.scene.add(directionalLight);
-            
-            // Add distant stars and galaxy backdrop
-            this.addDistantSpaceBackdrop();
-            
-            // Add temporary controls for development (will be replaced by spacecraft controls)
-            this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-            
-            console.log("Three.js initialized successfully");
-        } catch (error) {
-            console.error("Error initializing Three.js:", error);
-            throw error; // Re-throw to halt initialization
-        }
+        });
+        
+        console.log("Three.js initialized");
     }
     
     setupPostProcessing() {
@@ -439,91 +465,68 @@ class Game {
     // Add debug mode toggle
     toggleDebugMode() {
         this.debugMode = !this.debugMode;
-        console.log(`Debug mode: ${this.debugMode ? 'ON' : 'OFF'}`);
+        console.log("Debug mode:", this.debugMode ? "ON" : "OFF");
         
         if (this.debugMode) {
-            // Move camera to a position where we can see more of the scene
-            this.camera.position.set(0, 500, 500);
-            this.camera.lookAt(new THREE.Vector3(0, 0, 0));
-            
-            // Enable orbit controls for debugging
-            if (this.controls) {
-                this.controls.enabled = true;
-            }
-            
-            // Add debug helpers to the scene
+            // Add debug helpers
             this.addDebugHelpers();
             
-            // Show debug notification
-            if (this.uiManager && this.uiManager.showNotification) {
-                this.uiManager.showNotification('DEBUG MODE ENABLED - Press D to toggle', 'info');
-            }
+            // Log game state
+            this.logGameState();
+            
+            // Show notification
+            this.showNotification("Debug mode enabled. Press G to log game state, R to reset camera.", "info", 5000);
         } else {
-            // Return to normal view if spacecraft exists
-            if (this.spacecraft) {
-                this.camera.position.copy(this.spacecraft.position);
-                this.camera.position.y += 10;
-                this.camera.position.z += 30;
-                this.camera.lookAt(new THREE.Vector3(
-                    this.spacecraft.position.x,
-                    this.spacecraft.position.y,
-                    this.spacecraft.position.z - 100
-                ));
-            }
-            
-            // Disable orbit controls if not in debug mode
-            if (this.controls) {
-                this.controls.enabled = false;
-            }
-            
             // Remove debug helpers
             this.removeDebugHelpers();
             
-            // Show debug notification
-            if (this.uiManager && this.uiManager.showNotification) {
-                this.uiManager.showNotification('DEBUG MODE DISABLED', 'info');
-            }
+            // Show notification
+            this.showNotification("Debug mode disabled", "info", 2000);
         }
     }
     
-    // Add debug helpers to visualize the scene
+    // Add debug helpers to the scene
     addDebugHelpers() {
         // Add axes helper
-        this.axesHelper = new THREE.AxesHelper(1000);
-        this.scene.add(this.axesHelper);
+        const axesHelper = new THREE.AxesHelper(1000);
+        axesHelper.name = "axesHelper";
+        this.scene.add(axesHelper);
         
         // Add grid helper
-        this.gridHelper = new THREE.GridHelper(2000, 20);
-        this.scene.add(this.gridHelper);
+        const gridHelper = new THREE.GridHelper(2000, 20);
+        gridHelper.name = "gridHelper";
+        this.scene.add(gridHelper);
         
-        // Log scene hierarchy
-        console.log('Scene hierarchy:');
-        this.logSceneHierarchy(this.scene);
+        console.log("Added debug helpers to scene");
     }
     
-    // Remove debug helpers
+    // Remove debug helpers from the scene
     removeDebugHelpers() {
-        if (this.axesHelper) {
-            this.scene.remove(this.axesHelper);
-            this.axesHelper = null;
+        // Remove axes helper
+        const axesHelper = this.scene.getObjectByName("axesHelper");
+        if (axesHelper) {
+            this.scene.remove(axesHelper);
         }
         
-        if (this.gridHelper) {
-            this.scene.remove(this.gridHelper);
-            this.gridHelper = null;
+        // Remove grid helper
+        const gridHelper = this.scene.getObjectByName("gridHelper");
+        if (gridHelper) {
+            this.scene.remove(gridHelper);
         }
-    }
-    
-    // Log scene hierarchy for debugging
-    logSceneHierarchy(object, indent = 0) {
-        const indentStr = ' '.repeat(indent * 2);
-        console.log(`${indentStr}${object.type}: ${object.name || 'unnamed'}`);
         
-        if (object.children && object.children.length > 0) {
-            object.children.forEach(child => {
-                this.logSceneHierarchy(child, indent + 1);
-            });
+        // Remove debug sphere
+        const debugSphere = this.scene.getObjectByName("debugSphere");
+        if (debugSphere) {
+            this.scene.remove(debugSphere);
         }
+        
+        // Remove camera sphere
+        const cameraSphere = this.scene.getObjectByName("cameraSphere");
+        if (cameraSphere) {
+            this.scene.remove(cameraSphere);
+        }
+        
+        console.log("Removed debug helpers from scene");
     }
     
     // Add a method to forcibly remove all loading screens
@@ -572,48 +575,223 @@ class Game {
     
     // Scan surroundings for points of interest
     scanSurroundings() {
-        if (!this.spacecraft || !this.gameWorld) return;
-        
-        // Show scanning effect
-        if (this.uiManager && this.uiManager.showNotification) {
-            this.uiManager.showNotification('SCANNING SURROUNDINGS...', 'info');
+        if (!this.gameWorld || !this.spacecraft) {
+            this.showNotification("Unable to scan: Systems offline", "warning", 3000);
+            return;
         }
         
-        // Simulate scanning delay
-        setTimeout(() => {
-            // Get nearby objects from game world
-            const nearbyObjects = this.gameWorld.getNearbyObjects(this.spacecraft.position, 1000);
+        // Show scanning effect
+        this.showNotification("Scanning surroundings...", "info", 2000);
+        
+        // Create a visual scanning effect
+        const scanRadius = 1000;
+        const scanRing = new THREE.Mesh(
+            new THREE.RingGeometry(scanRadius, scanRadius + 10, 32),
+            new THREE.MeshBasicMaterial({
+                color: 0x00ffff,
+                transparent: true,
+                opacity: 0.7,
+                side: THREE.DoubleSide
+            })
+        );
+        
+        // Position the scan ring at the spacecraft's position
+        scanRing.position.copy(this.spacecraft.position);
+        
+        // Orient the ring to be horizontal
+        scanRing.rotation.x = Math.PI / 2;
+        
+        // Add to scene
+        this.scene.add(scanRing);
+        
+        // Animate the scan ring
+        const startTime = Date.now();
+        const duration = 2000; // 2 seconds
+        
+        const animateScan = () => {
+            const elapsed = Date.now() - startTime;
+            const progress = elapsed / duration;
             
-            if (nearbyObjects && nearbyObjects.length > 0) {
-                // Filter and categorize objects
-                const planets = nearbyObjects.filter(obj => obj.type === 'planet');
-                const anomalies = nearbyObjects.filter(obj => obj.type === 'anomaly');
-                const ships = nearbyObjects.filter(obj => obj.type === 'ship' || obj.type === 'alien');
-                const resources = nearbyObjects.filter(obj => obj.type === 'resource' || obj.type === 'asteroid');
+            if (progress >= 1) {
+                // Remove scan ring when animation completes
+                this.scene.remove(scanRing);
                 
-                // Report findings
-                let message = 'SCAN COMPLETE: ';
-                if (planets.length > 0) message += `${planets.length} planets, `;
-                if (anomalies.length > 0) message += `${anomalies.length} anomalies, `;
-                if (ships.length > 0) message += `${ships.length} ships, `;
-                if (resources.length > 0) message += `${resources.length} resources, `;
+                // Get nearby objects
+                let nearbyObjects = [];
                 
-                message = message.endsWith(', ') ? message.slice(0, -2) : message + 'Nothing found';
-                
-                if (this.uiManager && this.uiManager.showNotification) {
-                    this.uiManager.showNotification(message, 'success');
+                // Check if getNearbyObjects exists, otherwise use a fallback approach
+                if (typeof this.gameWorld.getNearbyObjects === 'function') {
+                    nearbyObjects = this.gameWorld.getNearbyObjects(this.spacecraft.position, scanRadius);
+                } else {
+                    // Fallback: manually check for nearby objects
+                    nearbyObjects = this.getObjectsNearSpacecraft(scanRadius);
                 }
                 
-                // Update UI with scan results
-                if (this.uiManager && this.uiManager.updateScanResults) {
-                    this.uiManager.updateScanResults(nearbyObjects);
+                // Display results
+                if (nearbyObjects.length > 0) {
+                    // Sort by distance
+                    nearbyObjects.sort((a, b) => a.distance - b.distance);
+                    
+                    // Show summary
+                    this.showNotification(`Scan complete: ${nearbyObjects.length} objects detected`, "success", 5000);
+                    
+                    // Show details for each object
+                    setTimeout(() => {
+                        nearbyObjects.forEach((obj, index) => {
+                            setTimeout(() => {
+                                const distance = Math.round(obj.distance);
+                                const direction = this.getDirectionDescription(obj.position, this.spacecraft.position);
+                                this.showNotification(`${obj.name}: ${distance}m ${direction}`, "info", 4000);
+                            }, index * 1500);
+                        });
+                    }, 1000);
+                } else {
+                    this.showNotification("Scan complete: No objects detected in range", "info", 3000);
                 }
-            } else {
-                if (this.uiManager && this.uiManager.showNotification) {
-                    this.uiManager.showNotification('SCAN COMPLETE: No objects detected', 'info');
-                }
+                
+                return;
             }
-        }, 1500);
+            
+            // Scale the ring based on progress
+            const scale = 0.1 + progress * 0.9;
+            scanRing.scale.set(scale, scale, scale);
+            
+            // Fade out as it expands
+            scanRing.material.opacity = 0.7 * (1 - progress);
+            
+            requestAnimationFrame(animateScan);
+        };
+        
+        animateScan();
+    }
+    
+    // Fallback method to get nearby objects if getNearbyObjects doesn't exist
+    getObjectsNearSpacecraft(radius) {
+        const nearbyObjects = [];
+        const spacecraftPosition = this.spacecraft.position;
+        
+        // Check planets
+        if (this.gameWorld.planets) {
+            this.gameWorld.planets.forEach(planet => {
+                if (planet.position.distanceTo(spacecraftPosition) < radius) {
+                    nearbyObjects.push({
+                        type: 'planet',
+                        name: planet.name || 'Unknown Planet',
+                        position: planet.position,
+                        distance: planet.position.distanceTo(spacecraftPosition),
+                        object: planet
+                    });
+                    
+                    // Trigger planet discovery callback
+                    if (this.onPlanetDiscovered) {
+                        this.onPlanetDiscovered({
+                            name: planet.name || 'Unknown Planet',
+                            position: planet.position
+                        });
+                    }
+                }
+            });
+        }
+        
+        // Check anomalies
+        if (this.gameWorld.anomalies) {
+            this.gameWorld.anomalies.forEach(anomaly => {
+                if (anomaly.position.distanceTo(spacecraftPosition) < radius) {
+                    nearbyObjects.push({
+                        type: 'anomaly',
+                        name: anomaly.name || `${anomaly.anomalyType.charAt(0).toUpperCase() + anomaly.anomalyType.slice(1)}`,
+                        position: anomaly.position,
+                        distance: anomaly.position.distanceTo(spacecraftPosition),
+                        anomalyType: anomaly.anomalyType,
+                        object: anomaly
+                    });
+                    
+                    // Trigger anomaly discovery callback
+                    if (this.onAnomalyDiscovered) {
+                        this.onAnomalyDiscovered({
+                            type: anomaly.anomalyType,
+                            name: anomaly.name,
+                            position: anomaly.position
+                        });
+                    }
+                }
+            });
+        }
+        
+        // Check motherships
+        if (this.gameWorld.motherships) {
+            this.gameWorld.motherships.forEach(mothership => {
+                if (mothership.position.distanceTo(spacecraftPosition) < radius) {
+                    nearbyObjects.push({
+                        type: 'mothership',
+                        name: mothership.name || 'Mothership',
+                        position: mothership.position,
+                        distance: mothership.position.distanceTo(spacecraftPosition),
+                        object: mothership
+                    });
+                }
+            });
+        }
+        
+        // Check aliens
+        if (this.gameWorld.aliens) {
+            this.gameWorld.aliens.forEach(alien => {
+                if (alien.position.distanceTo(spacecraftPosition) < radius) {
+                    nearbyObjects.push({
+                        type: 'alien',
+                        name: alien.name || 'Unknown Vessel',
+                        position: alien.position,
+                        distance: alien.position.distanceTo(spacecraftPosition),
+                        object: alien
+                    });
+                }
+            });
+        }
+        
+        return nearbyObjects;
+    }
+    
+    // Helper method to get direction description
+    getDirectionDescription(targetPosition, referencePosition) {
+        const direction = new THREE.Vector3().subVectors(targetPosition, referencePosition);
+        
+        // Get the angle in the XZ plane (horizontal)
+        const angleXZ = Math.atan2(direction.x, direction.z) * (180 / Math.PI);
+        
+        // Get the vertical angle
+        const horizontalDistance = Math.sqrt(direction.x * direction.x + direction.z * direction.z);
+        const angleY = Math.atan2(direction.y, horizontalDistance) * (180 / Math.PI);
+        
+        // Convert to compass directions
+        let compassDirection = "";
+        
+        // Horizontal direction
+        if (angleXZ > -22.5 && angleXZ <= 22.5) {
+            compassDirection = "ahead";
+        } else if (angleXZ > 22.5 && angleXZ <= 67.5) {
+            compassDirection = "ahead-right";
+        } else if (angleXZ > 67.5 && angleXZ <= 112.5) {
+            compassDirection = "right";
+        } else if (angleXZ > 112.5 && angleXZ <= 157.5) {
+            compassDirection = "behind-right";
+        } else if (angleXZ > 157.5 || angleXZ <= -157.5) {
+            compassDirection = "behind";
+        } else if (angleXZ > -157.5 && angleXZ <= -112.5) {
+            compassDirection = "behind-left";
+        } else if (angleXZ > -112.5 && angleXZ <= -67.5) {
+            compassDirection = "left";
+        } else if (angleXZ > -67.5 && angleXZ <= -22.5) {
+            compassDirection = "ahead-left";
+        }
+        
+        // Add vertical component
+        if (angleY > 15) {
+            compassDirection += " above";
+        } else if (angleY < -15) {
+            compassDirection += " below";
+        }
+        
+        return compassDirection;
     }
     
     // Toggle galactic map
@@ -1162,12 +1340,19 @@ class Game {
         
         // Update game world with player position for discovery checks
         if (this.gameWorld && this.spacecraft) {
-            this.gameWorld.update(delta / 1000, this.spacecraft.position);
+            // Check if the update method accepts a player position parameter
+            if (this.gameWorld.update.length >= 2) {
+                this.gameWorld.update(delta / 1000, this.spacecraft.position);
+            } else {
+                this.gameWorld.update(delta / 1000);
+            }
             
-            // Check for anomaly interactions
-            const interactingAnomaly = this.gameWorld.checkAnomalyInteractions(this.spacecraft);
-            if (interactingAnomaly) {
-                this.handleAnomalyInteraction(interactingAnomaly);
+            // Check for anomaly interactions only if the method exists
+            if (typeof this.gameWorld.checkAnomalyInteractions === 'function') {
+                const interactingAnomaly = this.gameWorld.checkAnomalyInteractions(this.spacecraft);
+                if (interactingAnomaly) {
+                    this.handleAnomalyInteraction(interactingAnomaly);
+                }
             }
         }
         
@@ -1180,6 +1365,595 @@ class Game {
         if (this.stats) {
             this.stats.update();
         }
+    }
+
+    // Add this method to diagnose rendering issues
+    logGameState() {
+        console.log("=== GAME STATE DIAGNOSTIC LOG ===");
+        
+        // Log scene information
+        if (this.scene) {
+            console.log("Scene exists with", this.scene.children.length, "children");
+            
+            // Count visible objects
+            let visibleObjects = 0;
+            let meshCount = 0;
+            let lightCount = 0;
+            
+            this.scene.traverse(object => {
+                if (object.visible) {
+                    visibleObjects++;
+                    if (object instanceof THREE.Mesh) meshCount++;
+                    if (object instanceof THREE.Light) lightCount++;
+                }
+            });
+            
+            console.log(`Visible objects: ${visibleObjects}, Meshes: ${meshCount}, Lights: ${lightCount}`);
+        } else {
+            console.error("Scene is null or undefined");
+        }
+        
+        // Log camera information
+        if (this.camera) {
+            console.log("Camera position:", this.camera.position);
+            console.log("Camera rotation:", this.camera.rotation);
+            console.log("Camera FOV:", this.camera.fov);
+            console.log("Camera near/far:", this.camera.near, "/", this.camera.far);
+            
+            if (this.controls) {
+                console.log("Camera controls target:", this.controls.target);
+            }
+        } else {
+            console.error("Camera is null or undefined");
+        }
+        
+        // Log spacecraft information
+        if (this.spacecraft) {
+            console.log("Spacecraft position:", this.spacecraft.position);
+            console.log("Spacecraft visible:", this.spacecraft.visible);
+            console.log("Spacecraft parent:", this.spacecraft.parent ? "Yes" : "No");
+        } else {
+            console.error("Spacecraft is null or undefined");
+        }
+        
+        // Log game world information
+        if (this.gameWorld) {
+            console.log("Game world exists with:");
+            console.log("- Planets:", this.gameWorld.planets ? this.gameWorld.planets.length : 0);
+            console.log("- Anomalies:", this.gameWorld.anomalies ? this.gameWorld.anomalies.length : 0);
+            console.log("- Motherships:", this.gameWorld.motherships ? this.gameWorld.motherships.length : 0);
+            console.log("- Aliens:", this.gameWorld.aliens ? this.gameWorld.aliens.length : 0);
+            
+            // Log current sector
+            if (this.gameWorld.currentSector) {
+                console.log("Current sector:", this.gameWorld.currentSector.name);
+            } else {
+                console.log("No current sector set");
+            }
+        } else {
+            console.error("Game world is null or undefined");
+        }
+        
+        // Log renderer information
+        if (this.renderer) {
+            console.log("Renderer size:", this.renderer.getSize(new THREE.Vector2()));
+            console.log("Renderer pixel ratio:", this.renderer.getPixelRatio());
+            console.log("Renderer is WebGL2:", this.renderer.capabilities.isWebGL2);
+        } else {
+            console.error("Renderer is null or undefined");
+        }
+        
+        console.log("=== END DIAGNOSTIC LOG ===");
+        
+        // Add a visual indicator in the scene to confirm rendering
+        this.addDebugSphere();
+    }
+
+    // Add a visible sphere at the origin to confirm rendering
+    addDebugSphere() {
+        const sphere = new THREE.Mesh(
+            new THREE.SphereGeometry(100, 16, 16),
+            new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true })
+        );
+        sphere.name = "debugSphere";
+        sphere.position.set(0, 0, 0);
+        this.scene.add(sphere);
+        
+        console.log("Added debug sphere at origin");
+        
+        // Also add a sphere at the camera position
+        const cameraSphere = new THREE.Mesh(
+            new THREE.SphereGeometry(10, 16, 16),
+            new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+        );
+        cameraSphere.name = "cameraSphere";
+        cameraSphere.position.copy(this.camera.position);
+        this.scene.add(cameraSphere);
+        
+        console.log("Added debug sphere at camera position:", this.camera.position);
+    }
+
+    // Add a method to reset the camera to a good viewing position
+    resetCamera() {
+        if (!this.camera) return;
+        
+        console.log("Resetting camera position...");
+        
+        // If we have a mothership, position camera to view it
+        if (this.gameWorld && this.gameWorld.motherships && this.gameWorld.motherships.length > 0) {
+            const mothership = this.gameWorld.motherships[0];
+            
+            // Position camera to look at mothership
+            this.camera.position.set(
+                mothership.position.x + 300,
+                mothership.position.y + 200,
+                mothership.position.z + 300
+            );
+            
+            // Look at mothership
+            if (this.controls) {
+                this.controls.target.copy(mothership.position);
+                this.controls.update();
+            } else {
+                this.camera.lookAt(mothership.position);
+            }
+        } 
+        // Otherwise, set a default position
+        else {
+            this.camera.position.set(0, 500, 500);
+            
+            if (this.controls) {
+                this.controls.target.set(0, 0, 0);
+                this.controls.update();
+            } else {
+                this.camera.lookAt(0, 0, 0);
+            }
+        }
+        
+        console.log("Camera reset to position:", this.camera.position);
+    }
+
+    // Add this method to initialize input manager
+    initInputManager() {
+        // Create input manager if it doesn't exist
+        if (!this.inputManager) {
+            this.inputManager = {
+                registerKeyBinding: (key, callback) => {
+                    document.addEventListener('keydown', (event) => {
+                        if (event.key.toLowerCase() === key.toLowerCase()) {
+                            callback();
+                        }
+                    });
+                }
+            };
+        }
+        
+        // Register key bindings
+        
+        // Launch/dock key (L)
+        this.inputManager.registerKeyBinding('l', () => {
+            console.log("L key pressed - toggle launch/dock");
+            // Toggle launch/dock functionality will be implemented
+        });
+        
+        // Debug key (D)
+        this.inputManager.registerKeyBinding('d', () => {
+            console.log("D key pressed - toggle debug mode");
+            this.toggleDebugMode();
+        });
+        
+        // Scan key (S)
+        this.inputManager.registerKeyBinding('s', () => {
+            console.log("S key pressed - scan surroundings");
+            this.scanSurroundings();
+        });
+        
+        // Map key (M)
+        this.inputManager.registerKeyBinding('m', () => {
+            console.log("M key pressed - toggle galactic map");
+            this.toggleGalacticMap();
+        });
+        
+        // Reset camera key (R)
+        this.inputManager.registerKeyBinding('r', () => {
+            console.log("R key pressed - reset camera");
+            this.resetCamera();
+        });
+        
+        // Log game state key (G)
+        this.inputManager.registerKeyBinding('g', () => {
+            console.log("G key pressed - log game state");
+            this.logGameState();
+        });
+        
+        console.log("Input manager initialized with key bindings");
+    }
+
+    // Update the animate method to ensure rendering is happening
+    animate() {
+        // Request next frame
+        requestAnimationFrame(this.animate.bind(this));
+        
+        // Skip if not running
+        if (!this.isRunning) return;
+        
+        // Calculate delta time
+        const time = performance.now();
+        const delta = time - (this.lastTime || time);
+        this.lastTime = time;
+        
+        // Update game state
+        this.update(time, delta);
+        
+        // Ensure renderer and scene exist
+        if (!this.renderer || !this.scene || !this.camera) {
+            console.error("Cannot render: missing renderer, scene, or camera");
+            return;
+        }
+        
+        // Log rendering attempt in debug mode
+        if (this.debugMode && time % 1000 < 20) { // Log approximately once per second
+            console.log("Rendering frame at time:", time);
+        }
+        
+        // Render the scene
+        try {
+            this.renderer.render(this.scene, this.camera);
+        } catch (error) {
+            console.error("Error rendering scene:", error);
+        }
+    }
+
+    // Initialize physics system
+    initPhysics() {
+        console.log("Initializing physics system...");
+        
+        // Create a simple physics system
+        this.physicsSystem = {
+            objects: [],
+            
+            addObject: (object) => {
+                this.physicsSystem.objects.push(object);
+            },
+            
+            update: (delta) => {
+                // Update physics for all objects
+                for (const object of this.physicsSystem.objects) {
+                    if (object.updatePhysics) {
+                        object.updatePhysics(delta);
+                    }
+                }
+            },
+            
+            collisionGroups: {
+                spacecraft: 1,
+                planet: 2,
+                alien: 3,
+                projectile: 4
+            }
+        };
+        
+        console.log("Physics system initialized");
+    }
+
+    // Initialize game world
+    initGameWorld() {
+        console.log("Initializing game world...");
+        
+        // Create game world
+        try {
+            // Check if GameWorld class is available
+            if (typeof GameWorld === 'function') {
+                this.gameWorld = new GameWorld(
+                    this.scene,
+                    this.loadingManager,
+                    this.physicsSystem
+                );
+                
+                console.log("Game world initialized");
+            } else {
+                throw new Error("GameWorld class not found");
+            }
+        } catch (error) {
+            console.error("Error initializing game world:", error);
+            
+            // Create a minimal fallback game world
+            this.gameWorld = {
+                planets: [],
+                aliens: [],
+                motherships: [],
+                asteroidFields: [],
+                nebulae: [],
+                sectors: [],
+                anomalies: [],
+                currentSector: null,
+                
+                update: (delta) => {
+                    // Empty update method
+                }
+            };
+            
+            console.log("Created fallback game world");
+        }
+    }
+
+    // Initialize UI elements
+    initUI() {
+        console.log("Initializing UI...");
+        
+        try {
+            // Create UI container
+            const uiContainer = document.createElement('div');
+            uiContainer.id = 'game-ui';
+            uiContainer.style.position = 'absolute';
+            uiContainer.style.width = '100%';
+            uiContainer.style.height = '100%';
+            uiContainer.style.pointerEvents = 'none';
+            document.body.appendChild(uiContainer);
+            
+            // Create health bar
+            this.healthBar = document.createElement('div');
+            this.healthBar.id = 'health-bar';
+            this.healthBar.className = 'status-bar';
+            this.healthBar.style.position = 'absolute';
+            this.healthBar.style.bottom = '20px';
+            this.healthBar.style.left = '20px';
+            this.healthBar.style.width = '200px';
+            this.healthBar.style.height = '15px';
+            this.healthBar.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+            this.healthBar.style.border = '1px solid #444';
+            this.healthBar.style.borderRadius = '3px';
+            this.healthBar.style.overflow = 'hidden';
+            
+            const healthFill = document.createElement('div');
+            healthFill.id = 'health-fill';
+            healthFill.style.width = '100%';
+            healthFill.style.height = '100%';
+            healthFill.style.backgroundColor = '#f00';
+            healthFill.style.transition = 'width 0.3s ease-in-out';
+            this.healthBar.appendChild(healthFill);
+            
+            const healthLabel = document.createElement('div');
+            healthLabel.textContent = 'HULL';
+            healthLabel.style.position = 'absolute';
+            healthLabel.style.top = '0';
+            healthLabel.style.left = '5px';
+            healthLabel.style.color = 'white';
+            healthLabel.style.fontSize = '10px';
+            healthLabel.style.fontFamily = 'Arial, sans-serif';
+            healthLabel.style.lineHeight = '15px';
+            this.healthBar.appendChild(healthLabel);
+            
+            // Create shield bar
+            this.shieldBar = document.createElement('div');
+            this.shieldBar.id = 'shield-bar';
+            this.shieldBar.className = 'status-bar';
+            this.shieldBar.style.position = 'absolute';
+            this.shieldBar.style.bottom = '40px';
+            this.shieldBar.style.left = '20px';
+            this.shieldBar.style.width = '200px';
+            this.shieldBar.style.height = '15px';
+            this.shieldBar.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+            this.shieldBar.style.border = '1px solid #444';
+            this.shieldBar.style.borderRadius = '3px';
+            this.shieldBar.style.overflow = 'hidden';
+            
+            const shieldFill = document.createElement('div');
+            shieldFill.id = 'shield-fill';
+            shieldFill.style.width = '100%';
+            shieldFill.style.height = '100%';
+            shieldFill.style.backgroundColor = '#0af';
+            shieldFill.style.transition = 'width 0.3s ease-in-out';
+            this.shieldBar.appendChild(shieldFill);
+            
+            const shieldLabel = document.createElement('div');
+            shieldLabel.textContent = 'SHIELD';
+            shieldLabel.style.position = 'absolute';
+            shieldLabel.style.top = '0';
+            shieldLabel.style.left = '5px';
+            shieldLabel.style.color = 'white';
+            shieldLabel.style.fontSize = '10px';
+            shieldLabel.style.fontFamily = 'Arial, sans-serif';
+            shieldLabel.style.lineHeight = '15px';
+            this.shieldBar.appendChild(shieldLabel);
+            
+            // Create energy bar
+            this.energyBar = document.createElement('div');
+            this.energyBar.id = 'energy-bar';
+            this.energyBar.className = 'status-bar';
+            this.energyBar.style.position = 'absolute';
+            this.energyBar.style.bottom = '60px';
+            this.energyBar.style.left = '20px';
+            this.energyBar.style.width = '200px';
+            this.energyBar.style.height = '15px';
+            this.energyBar.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+            this.energyBar.style.border = '1px solid #444';
+            this.energyBar.style.borderRadius = '3px';
+            this.energyBar.style.overflow = 'hidden';
+            
+            const energyFill = document.createElement('div');
+            energyFill.id = 'energy-fill';
+            energyFill.style.width = '100%';
+            energyFill.style.height = '100%';
+            energyFill.style.backgroundColor = '#ff0';
+            energyFill.style.transition = 'width 0.3s ease-in-out';
+            this.energyBar.appendChild(energyFill);
+            
+            const energyLabel = document.createElement('div');
+            energyLabel.textContent = 'ENERGY';
+            energyLabel.style.position = 'absolute';
+            energyLabel.style.top = '0';
+            energyLabel.style.left = '5px';
+            energyLabel.style.color = 'white';
+            energyLabel.style.fontSize = '10px';
+            energyLabel.style.fontFamily = 'Arial, sans-serif';
+            energyLabel.style.lineHeight = '15px';
+            this.energyBar.appendChild(energyLabel);
+            
+            // Create FPS counter
+            this.fpsCounter = document.createElement('div');
+            this.fpsCounter.id = 'fps-counter';
+            this.fpsCounter.style.position = 'absolute';
+            this.fpsCounter.style.top = '10px';
+            this.fpsCounter.style.left = '10px';
+            this.fpsCounter.style.color = 'white';
+            this.fpsCounter.style.fontSize = '12px';
+            this.fpsCounter.style.fontFamily = 'monospace';
+            this.fpsCounter.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+            this.fpsCounter.style.padding = '5px';
+            this.fpsCounter.style.borderRadius = '3px';
+            this.fpsCounter.textContent = 'FPS: 0';
+            
+            // Create sector info
+            this.sectorInfo = document.createElement('div');
+            this.sectorInfo.id = 'sector-info';
+            this.sectorInfo.style.position = 'absolute';
+            this.sectorInfo.style.top = '10px';
+            this.sectorInfo.style.left = '50%';
+            this.sectorInfo.style.transform = 'translateX(-50%)';
+            this.sectorInfo.style.color = 'white';
+            this.sectorInfo.style.fontSize = '14px';
+            this.sectorInfo.style.fontFamily = 'Arial, sans-serif';
+            this.sectorInfo.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+            this.sectorInfo.style.padding = '5px 15px';
+            this.sectorInfo.style.borderRadius = '3px';
+            this.sectorInfo.textContent = 'UNKNOWN SECTOR';
+            
+            // Create notification area
+            this.notificationArea = document.createElement('div');
+            this.notificationArea.id = 'notification-area';
+            this.notificationArea.style.position = 'absolute';
+            this.notificationArea.style.bottom = '100px';
+            this.notificationArea.style.left = '50%';
+            this.notificationArea.style.transform = 'translateX(-50%)';
+            this.notificationArea.style.width = '80%';
+            this.notificationArea.style.maxWidth = '800px';
+            this.notificationArea.style.display = 'flex';
+            this.notificationArea.style.flexDirection = 'column';
+            this.notificationArea.style.alignItems = 'center';
+            this.notificationArea.style.pointerEvents = 'none';
+            
+            // Add elements to UI container
+            uiContainer.appendChild(this.healthBar);
+            uiContainer.appendChild(this.shieldBar);
+            uiContainer.appendChild(this.energyBar);
+            uiContainer.appendChild(this.fpsCounter);
+            uiContainer.appendChild(this.sectorInfo);
+            uiContainer.appendChild(this.notificationArea);
+            
+            // Create exploration UI
+            this.createExplorationUI();
+            
+            console.log("UI initialized");
+        } catch (error) {
+            console.error("Error initializing UI:", error);
+        }
+    }
+
+    // Show notification message
+    showNotification(message, type = 'info', duration = 5000) {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        notification.style.color = type === 'danger' ? '#ff4444' : 
+                                  type === 'warning' ? '#ffaa00' : 
+                                  type === 'success' ? '#44ff44' : '#44aaff';
+        notification.style.padding = '10px 20px';
+        notification.style.borderRadius = '5px';
+        notification.style.marginBottom = '10px';
+        notification.style.maxWidth = '100%';
+        notification.style.boxShadow = '0 0 10px rgba(0, 0, 0, 0.5)';
+        notification.style.fontFamily = 'Arial, sans-serif';
+        notification.style.fontSize = '14px';
+        notification.style.textAlign = 'center';
+        notification.style.transition = 'opacity 0.5s ease-in-out, transform 0.5s ease-in-out';
+        notification.style.opacity = '0';
+        notification.style.transform = 'translateY(20px)';
+        notification.textContent = message;
+        
+        // Add to notification area
+        const notificationArea = document.getElementById('notification-area');
+        if (notificationArea) {
+            notificationArea.appendChild(notification);
+            
+            // Animate in
+            setTimeout(() => {
+                notification.style.opacity = '1';
+                notification.style.transform = 'translateY(0)';
+            }, 10);
+            
+            // Remove after duration (if not permanent)
+            if (duration > 0) {
+                setTimeout(() => {
+                    notification.style.opacity = '0';
+                    notification.style.transform = 'translateY(-20px)';
+                    
+                    // Remove from DOM after fade out
+                    setTimeout(() => {
+                        if (notification.parentNode) {
+                            notification.parentNode.removeChild(notification);
+                        }
+                    }, 500);
+                }, duration);
+            }
+        } else {
+            console.warn("Notification area not found, message:", message);
+        }
+    }
+
+    // Update health UI
+    updateHealthUI() {
+        if (!this.spacecraft) return;
+        
+        // Update hull health
+        const healthFill = document.getElementById('health-fill');
+        if (healthFill) {
+            const healthPercent = Math.max(0, Math.min(100, this.spacecraft.hull));
+            healthFill.style.width = `${healthPercent}%`;
+            
+            // Change color based on health
+            if (healthPercent < 20) {
+                healthFill.style.backgroundColor = '#f00'; // Red
+            } else if (healthPercent < 50) {
+                healthFill.style.backgroundColor = '#f80'; // Orange
+            } else {
+                healthFill.style.backgroundColor = '#0f0'; // Green
+            }
+        }
+        
+        // Update shield
+        const shieldFill = document.getElementById('shield-fill');
+        if (shieldFill) {
+            const shieldPercent = Math.max(0, Math.min(100, this.spacecraft.shields));
+            shieldFill.style.width = `${shieldPercent}%`;
+        }
+        
+        // Update energy
+        const energyFill = document.getElementById('energy-fill');
+        if (energyFill) {
+            const energyPercent = Math.max(0, Math.min(100, this.spacecraft.energy));
+            energyFill.style.width = `${energyPercent}%`;
+        }
+    }
+
+    // Update sector info
+    updateSectorInfo() {
+        if (!this.sectorInfo || !this.gameWorld) return;
+        
+        // Get current sector
+        let sectorName = "UNKNOWN SECTOR";
+        
+        if (this.spacecraft && this.gameWorld.getCurrentSector) {
+            const sectorInfo = this.gameWorld.getCurrentSector(this.spacecraft.position);
+            if (sectorInfo && sectorInfo.name) {
+                sectorName = sectorInfo.name.toUpperCase();
+            }
+        } else if (this.gameWorld.currentSector && this.gameWorld.currentSector.name) {
+            sectorName = this.gameWorld.currentSector.name.toUpperCase();
+        }
+        
+        this.sectorInfo.textContent = sectorName;
     }
 }
 
