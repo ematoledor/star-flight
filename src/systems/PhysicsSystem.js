@@ -238,6 +238,11 @@ export class PhysicsSystem {
                 return;
             }
             
+            // Skip objects without position
+            if (!object.position || !this.isValidVector(object.position)) {
+                return;
+            }
+            
             const objectBounds = this.getBoundingBox(object);
             
             // Skip objects without bounding boxes
@@ -250,6 +255,11 @@ export class PhysicsSystem {
                 try {
                     // Skip self or null objects
                     if (!otherObject || otherObject === object) {
+                        return;
+                    }
+                    
+                    // Skip objects without position
+                    if (!otherObject.position || !this.isValidVector(otherObject.position)) {
                         return;
                     }
                     
@@ -267,13 +277,17 @@ export class PhysicsSystem {
                         return;
                     }
                     
-                    // Check for overlap
-                    if (this.checkBoundsOverlap(objectBounds, otherBounds)) {
-                        // Calculate penetration depth for better collision response
-                        const penetration = this.calculatePenetration(objectBounds, otherBounds);
-                        
-                        // Collision detected!
-                        this.handleCollision(object, otherObject, penetration);
+                    try {
+                        // Check for overlap
+                        if (this.checkBoundsOverlap(objectBounds, otherBounds)) {
+                            // Calculate penetration depth for better collision response
+                            const penetration = this.calculatePenetration(objectBounds, otherBounds);
+                            
+                            // Collision detected!
+                            this.handleCollision(object, otherObject, penetration);
+                        }
+                    } catch (error) {
+                        console.warn('PhysicsSystem: Error checking bounds overlap', error);
                     }
                 } catch (error) {
                     console.warn('PhysicsSystem: Error in collision check with object', error);
@@ -291,6 +305,12 @@ export class PhysicsSystem {
                 return new THREE.Vector3();
             }
             
+            // Additional validation to ensure required methods exist
+            if (typeof bounds1.getCenter !== 'function' || typeof bounds2.getCenter !== 'function') {
+                console.warn('PhysicsSystem: Invalid bounding boxes for penetration calculation');
+                return new THREE.Vector3();
+            }
+            
             // Calculate the penetration vector to push objects apart
             const center1 = new THREE.Vector3();
             bounds1.getCenter(center1);
@@ -298,12 +318,36 @@ export class PhysicsSystem {
             const center2 = new THREE.Vector3();
             bounds2.getCenter(center2);
             
+            // Safety check for both centers
+            if (!this.isValidVector(center1) || !this.isValidVector(center2)) {
+                return new THREE.Vector3();
+            }
+            
             // Direction from bounds2 to bounds1
-            const direction = new THREE.Vector3().subVectors(center1, center2).normalize();
+            const direction = new THREE.Vector3().subVectors(center1, center2);
+            
+            // Avoid normalizing zero-length vectors
+            if (direction.lengthSq() === 0) {
+                return new THREE.Vector3(0, 0.1, 0); // Default slight upward push if centers overlap
+            }
+            
+            direction.normalize();
             
             // Calculate size along each axis
-            const size1 = new THREE.Vector3().subVectors(bounds1.max, bounds1.min).multiplyScalar(0.5);
-            const size2 = new THREE.Vector3().subVectors(bounds2.max, bounds2.min).multiplyScalar(0.5);
+            const size1 = new THREE.Vector3();
+            const size2 = new THREE.Vector3();
+            
+            if (this.isValidVector(bounds1.max) && this.isValidVector(bounds1.min)) {
+                size1.subVectors(bounds1.max, bounds1.min).multiplyScalar(0.5);
+            } else {
+                size1.set(1, 1, 1); // Default size
+            }
+            
+            if (this.isValidVector(bounds2.max) && this.isValidVector(bounds2.min)) {
+                size2.subVectors(bounds2.max, bounds2.min).multiplyScalar(0.5);
+            } else {
+                size2.set(1, 1, 1); // Default size
+            }
             
             // Total distance between centers
             const totalDist = center1.distanceTo(center2);
@@ -318,6 +362,13 @@ export class PhysicsSystem {
             console.warn('PhysicsSystem: Error calculating penetration', error);
             return new THREE.Vector3();
         }
+    }
+    
+    // Helper function to validate vector coordinates
+    isValidVector(vec) {
+        if (!vec) return false;
+        return !isNaN(vec.x) && !isNaN(vec.y) && !isNaN(vec.z) && 
+               isFinite(vec.x) && isFinite(vec.y) && isFinite(vec.z);
     }
     
     getBoundingBox(object) {
@@ -424,18 +475,34 @@ export class PhysicsSystem {
     }
     
     checkBoundsOverlap(bounds1, bounds2) {
-        // Add null checks to prevent errors
-        if (!bounds1 || !bounds2) {
+        try {
+            // Add null checks to prevent errors
+            if (!bounds1 || !bounds2) {
+                return false;
+            }
+            
+            // Make sure both bounds have the required methods
+            if (typeof bounds1.intersectsBox !== 'function') {
+                console.warn('PhysicsSystem: bounds1 missing intersectsBox method');
+                return false;
+            }
+            
+            if (typeof bounds2.intersectsBox !== 'function') {
+                console.warn('PhysicsSystem: bounds2 missing intersectsBox method');
+                return false;
+            }
+            
+            // Additional validation for bounds properties
+            if (!this.isValidVector(bounds1.min) || !this.isValidVector(bounds1.max) || 
+                !this.isValidVector(bounds2.min) || !this.isValidVector(bounds2.max)) {
+                return false;
+            }
+            
+            return bounds1.intersectsBox(bounds2);
+        } catch (error) {
+            console.warn('PhysicsSystem: Error in checkBoundsOverlap', error);
             return false;
         }
-        
-        // Make sure both bounds have the required methods
-        if (typeof bounds1.intersectsBox !== 'function') {
-            console.warn('PhysicsSystem: bounds1 missing intersectsBox method');
-            return false;
-        }
-        
-        return bounds1.intersectsBox(bounds2);
     }
     
     handleCollision(object1, object2, penetration) {
