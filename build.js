@@ -1,5 +1,5 @@
 // Custom build script for Vercel
-const { execSync } = require('child_process');
+import { execSync } from 'child_process';
 
 console.log('Starting custom build process...');
 
