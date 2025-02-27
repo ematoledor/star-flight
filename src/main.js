@@ -2977,3 +2977,279 @@ window.addEventListener('load', () => {
 
 // Export the Game class for module bundling
 export default Game; 
+
+// Add this after the global emergency functions
+
+// Add direct keyboard controls as a fallback
+window.addEventListener('DOMContentLoaded', () => {
+    console.log("Setting up direct keyboard controls");
+    
+    // Wait a bit to ensure the game is initialized
+    setTimeout(() => {
+        // Get the game instance
+        const game = window.game;
+        
+        if (!game || !game.spacecraft) {
+            console.error("Game or spacecraft not available for direct controls");
+            return;
+        }
+        
+        // Set up direct keyboard controls
+        document.addEventListener('keydown', (event) => {
+            const key = event.key.toLowerCase();
+            const spacecraft = game.spacecraft;
+            const delta = 1/60; // Approximate delta time
+            
+            // Skip if spacecraft is not available
+            if (!spacecraft) return;
+            
+            console.log(`Direct key press: ${key}`);
+            
+            switch (key) {
+                case 'w': // Forward
+                    spacecraft.accelerate(1, delta);
+                    break;
+                case 's': // Backward
+                    spacecraft.accelerate(-0.5, delta);
+                    break;
+                case 'a': // Strafe left
+                    spacecraft.strafe(-1, delta);
+                    break;
+                case 'd': // Strafe right
+                    spacecraft.strafe(1, delta);
+                    break;
+                case 'v': // Toggle camera view
+                    if (spacecraft.cycleCameraMode) {
+                        spacecraft.cycleCameraMode();
+                        console.log(`Camera mode switched to: ${spacecraft.cameraMode}`);
+                    }
+                    break;
+                case 'c': // Toggle cockpit view
+                    if (spacecraft.switchCameraMode) {
+                        const newMode = spacecraft.cameraMode === 'cockpit' ? 'third-person' : 'cockpit';
+                        spacecraft.switchCameraMode(newMode);
+                    }
+                    break;
+                case 'f': // Toggle first-person view
+                    if (spacecraft.switchCameraMode) {
+                        const newMode = spacecraft.cameraMode === 'first-person' ? 'third-person' : 'first-person';
+                        spacecraft.switchCameraMode(newMode);
+                    }
+                    break;
+                case ' ': // Boost
+                    spacecraft.boost(delta);
+                    break;
+                case 'shift': // Brake
+                    spacecraft.brake(delta);
+                    break;
+                case 'arrowleft': // Rotate left
+                    spacecraft.rotate('y', -1, delta);
+                    break;
+                case 'arrowright': // Rotate right
+                    spacecraft.rotate('y', 1, delta);
+                    break;
+                case 'arrowup': // Pitch up
+                    spacecraft.rotate('x', -1, delta);
+                    break;
+                case 'arrowdown': // Pitch down
+                    spacecraft.rotate('x', 1, delta);
+                    break;
+                case 'q': // Roll left
+                    spacecraft.rotate('z', -1, delta);
+                    break;
+                case 'e': // Roll right
+                    spacecraft.rotate('z', 1, delta);
+                    break;
+            }
+        });
+        
+        // Add mouse controls for aiming
+        document.addEventListener('mousemove', (event) => {
+            if (!game.spacecraft) return;
+            
+            // Only if pointer is locked
+            if (document.pointerLockElement) {
+                const sensitivity = 0.002;
+                const delta = 1/60;
+                
+                if (event.movementX) {
+                    game.spacecraft.rotate('y', -event.movementX * sensitivity, delta);
+                }
+                
+                if (event.movementY) {
+                    game.spacecraft.rotate('x', -event.movementY * sensitivity, delta);
+                }
+            }
+        });
+        
+        // Add click for pointer lock
+        document.addEventListener('click', () => {
+            if (!document.pointerLockElement) {
+                document.body.requestPointerLock();
+            }
+        });
+        
+        console.log("Direct keyboard controls set up successfully");
+    }, 2000); // Wait 2 seconds for game to initialize
+}); 
+
+// Add this after the direct keyboard controls
+
+// Add a simple visible controls panel
+window.addEventListener('DOMContentLoaded', () => {
+    console.log("Setting up visible controls panel");
+    
+    // Wait a bit to ensure the game is initialized
+    setTimeout(() => {
+        // Create a controls panel
+        const controlsPanel = document.createElement('div');
+        controlsPanel.style.position = 'fixed';
+        controlsPanel.style.bottom = '10px';
+        controlsPanel.style.right = '10px';
+        controlsPanel.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        controlsPanel.style.color = 'white';
+        controlsPanel.style.padding = '10px';
+        controlsPanel.style.borderRadius = '5px';
+        controlsPanel.style.fontFamily = 'Arial, sans-serif';
+        controlsPanel.style.fontSize = '14px';
+        controlsPanel.style.zIndex = '1000';
+        controlsPanel.style.maxWidth = '300px';
+        
+        // Add controls information
+        controlsPanel.innerHTML = `
+            <h3 style="margin-top: 0; color: #00aaff;">Spacecraft Controls</h3>
+            <div style="margin-bottom: 10px;">
+                <strong>Movement:</strong>
+                <ul style="margin: 5px 0; padding-left: 20px;">
+                    <li>W - Forward</li>
+                    <li>S - Backward</li>
+                    <li>A - Strafe Left</li>
+                    <li>D - Strafe Right</li>
+                    <li>Space - Boost</li>
+                    <li>Shift - Brake</li>
+                </ul>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <strong>Camera:</strong>
+                <ul style="margin: 5px 0; padding-left: 20px;">
+                    <li>V - Cycle Camera Views</li>
+                    <li>C - Toggle Cockpit View</li>
+                    <li>F - Toggle First-Person</li>
+                </ul>
+            </div>
+            <div>
+                <strong>Rotation:</strong>
+                <ul style="margin: 5px 0; padding-left: 20px;">
+                    <li>Mouse - Aim</li>
+                    <li>Arrow Keys - Rotate</li>
+                    <li>Q/E - Roll Left/Right</li>
+                </ul>
+            </div>
+            <div style="margin-top: 10px; font-size: 12px; color: #aaaaaa;">
+                Click anywhere to lock mouse pointer for controls
+            </div>
+        `;
+        
+        // Add to document
+        document.body.appendChild(controlsPanel);
+        
+        console.log("Visible controls panel added");
+    }, 1000); // Wait 1 second for game to initialize
+}); 
+
+// Add this after the visible controls panel
+
+// Add a continuous key checker
+window.addEventListener('DOMContentLoaded', () => {
+    console.log("Setting up continuous key checker");
+    
+    // Wait a bit to ensure the game is initialized
+    setTimeout(() => {
+        // Get the game instance
+        const game = window.game;
+        
+        if (!game) {
+            console.error("Game not available for continuous key checker");
+            return;
+        }
+        
+        // Create a key state tracker
+        const keyState = {};
+        
+        // Set up key listeners
+        document.addEventListener('keydown', (event) => {
+            keyState[event.key.toLowerCase()] = true;
+        });
+        
+        document.addEventListener('keyup', (event) => {
+            keyState[event.key.toLowerCase()] = false;
+        });
+        
+        // Set up continuous update loop
+        const updateInterval = setInterval(() => {
+            // Skip if game or spacecraft is not available
+            if (!game || !game.spacecraft) {
+                return;
+            }
+            
+            const spacecraft = game.spacecraft;
+            const delta = 1/60; // Approximate delta time
+            
+            // Handle movement
+            if (keyState['w']) {
+                spacecraft.accelerate(1, delta);
+            }
+            
+            if (keyState['s']) {
+                spacecraft.accelerate(-0.5, delta);
+            }
+            
+            if (keyState['a']) {
+                spacecraft.strafe(-1, delta);
+            }
+            
+            if (keyState['d']) {
+                spacecraft.strafe(1, delta);
+            }
+            
+            // Handle rotation
+            if (keyState['arrowleft']) {
+                spacecraft.rotate('y', -1, delta);
+            }
+            
+            if (keyState['arrowright']) {
+                spacecraft.rotate('y', 1, delta);
+            }
+            
+            if (keyState['arrowup']) {
+                spacecraft.rotate('x', -1, delta);
+            }
+            
+            if (keyState['arrowdown']) {
+                spacecraft.rotate('x', 1, delta);
+            }
+            
+            // Handle special actions
+            if (keyState[' ']) { // Space
+                spacecraft.boost(delta);
+            }
+            
+            if (keyState['shift']) {
+                spacecraft.brake(delta);
+            }
+            
+            if (keyState['q']) {
+                spacecraft.rotate('z', -1, delta);
+            }
+            
+            if (keyState['e']) {
+                spacecraft.rotate('z', 1, delta);
+            }
+        }, 16); // ~60fps
+        
+        // Store the interval for cleanup
+        window.continuousKeyCheckerInterval = updateInterval;
+        
+        console.log("Continuous key checker set up successfully");
+    }, 3000); // Wait 3 seconds for game to initialize
+}); 
