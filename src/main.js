@@ -15,6 +15,8 @@ class Game {
         this.initialized = false;
         this.isRunning = false;
         this.debugMode = false;
+        this.initStartTime = 0;
+        this.initWarningShown = false;
         
         // Exploration tracking
         this.discoveredSectors = new Set();
@@ -48,7 +50,7 @@ class Game {
         this.frameCount = 0;
         this.slowFrameCount = 0;
         this.qualityReduced = false;
-        this.fps = 0;
+        this.fps = 60;
         this.lastTime = 0;
         this.lastFpsUpdate = 0;
         this.framesSinceLastFpsUpdate = 0;
@@ -217,7 +219,9 @@ class Game {
             
             // Create scene
             this.scene = new THREE.Scene();
-            this.scene.background = new THREE.Color(0x000000); // Black background
+            
+            // Set background color to black (space)
+            this.scene.background = new THREE.Color(0x000000);
             
             // Create camera
             this.camera = new THREE.PerspectiveCamera(
@@ -228,34 +232,39 @@ class Game {
             );
             
             // Set initial camera position
-            this.camera.position.set(0, 50, 200);
+            this.camera.position.set(0, 10, 50);
             console.log(`Initial camera position: ${JSON.stringify(this.camera.position)}`);
             
-            // Create renderer with optimized settings
+            // Create renderer
             const canvas = document.createElement('canvas');
             document.body.appendChild(canvas);
+            
+            // Style canvas to cover viewport
             canvas.style.position = 'absolute';
             canvas.style.top = '0';
             canvas.style.left = '0';
             canvas.style.width = '100%';
             canvas.style.height = '100%';
-            canvas.style.zIndex = '1'; // Ensure it's above the loading screen
+            canvas.style.zIndex = '1'; // Above loading screen
             
+            // Create WebGL renderer
             this.renderer = new THREE.WebGLRenderer({
                 canvas: canvas,
-                antialias: window.innerWidth > 1200, // Only use antialiasing on larger screens
+                antialias: window.innerWidth > 1024, // Only use antialiasing on larger screens
+                alpha: false, // No transparency needed for space
                 powerPreference: 'high-performance',
-                precision: 'mediump', // Use medium precision for better performance
-                logarithmicDepthBuffer: false, // Disable for better performance
-                alpha: false // No need for alpha in a space game with black background
+                precision: 'mediump' // Use medium precision for better performance
             });
             
             // Set renderer size and pixel ratio
             this.renderer.setSize(window.innerWidth, window.innerHeight);
-            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Limit pixel ratio for performance
+            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // Limit pixel ratio for performance
             
-            // Add lights
-            const ambientLight = new THREE.AmbientLight(0x404040, 0.5); // Soft ambient light
+            // Disable logarithmic depth buffer for performance
+            this.renderer.logarithmicDepthBuffer = false;
+            
+            // Add lights to the scene
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
             this.scene.add(ambientLight);
             
             const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
@@ -263,12 +272,12 @@ class Game {
             this.scene.add(directionalLight);
             
             // Add a test sphere to verify rendering
-            const geometry = new THREE.SphereGeometry(10, 16, 16); // Reduced segments for better performance
+            const geometry = new THREE.SphereGeometry(5, 16, 16); // Reduced segments for performance
             const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
             const sphere = new THREE.Mesh(geometry, material);
             sphere.position.set(0, 0, 0);
+            sphere.name = "TestSphere";
             this.scene.add(sphere);
-            console.log("Added test sphere to scene at origin");
             
             // Handle window resize
             window.addEventListener('resize', () => {
@@ -277,17 +286,16 @@ class Game {
                 this.renderer.setSize(window.innerWidth, window.innerHeight);
             });
             
-            // Enable frustum culling for better performance
+            // Enable frustum culling for performance
             this.camera.frustumCulled = true;
             
-            // Force an initial render to ensure the scene is visible
+            // Force an initial render to ensure scene is visible
             this.renderer.render(this.scene, this.camera);
             
             console.log(`Scene initialized with ${this.scene.children.length} objects`);
             return true;
         } catch (error) {
             console.error("Error initializing Three.js:", error);
-            this.showErrorMessage("Failed to initialize 3D graphics: " + error.message);
             return false;
         }
     }
@@ -1511,25 +1519,15 @@ class Game {
     
     // Separate rendering function to ensure it's always called
     renderScene() {
-        if (this.renderer && this.scene && this.camera) {
-            try {
-                // Ensure camera is looking at something
-                if (this.spacecraft) {
-                    this.camera.lookAt(this.spacecraft.position);
-                }
-                
-                // Render the scene
+        try {
+            // Always render the scene if we have the necessary components
+            if (this.renderer && this.scene && this.camera) {
                 this.renderer.render(this.scene, this.camera);
-            } catch (renderError) {
-                console.error("Error rendering scene:", renderError);
+            } else {
+                console.warn("Cannot render scene: missing renderer, scene, or camera");
             }
-        } else {
-            // Log missing components but only once per second to avoid console spam
-            if (this.frameCount % 60 === 0) {
-                if (!this.renderer) console.warn("Renderer is missing");
-                if (!this.scene) console.warn("Scene is missing");
-                if (!this.camera) console.warn("Camera is missing");
-            }
+        } catch (error) {
+            console.error("Error rendering scene:", error);
         }
     }
     
@@ -1593,34 +1591,62 @@ class Game {
     // Animation loop
     animate() {
         try {
-            // Only continue animation if game is running
+            // Only continue animation if game is active
             if (!this.isRunning) {
-                console.log("Game animation stopped");
+                console.warn("Animation stopped: game is not running");
                 return;
             }
             
-            // Request next frame
-            requestAnimationFrame(this.animate.bind(this));
+            // Request next frame immediately to ensure smooth animation
+            requestAnimationFrame(this.animate);
             
             // Calculate delta time
             const now = performance.now();
-            const delta = Math.min((now - this.lastTime) / 1000, 0.1); // Cap at 100ms to prevent huge jumps
+            const delta = (now - this.lastTime) / 1000; // Convert to seconds
             this.lastTime = now;
             
-            // Update game state
-            this.update(now, delta);
+            // Skip if delta is too large (tab was inactive)
+            if (delta > 0.5) {
+                console.log("Large frame time detected, skipping update:", delta);
+                return;
+            }
             
-            // Update FPS counter every second
+            // Update stats if available
+            if (this.stats) {
+                this.stats.begin();
+            }
+            
+            // Always render the scene, even if not initialized
+            this.renderScene();
+            
+            // Only update game logic if initialized
+            if (this.initialized) {
+                this.update(now, delta);
+            }
+            
+            // Update stats if available
+            if (this.stats) {
+                this.stats.end();
+            }
+            
+            // Update FPS counter
+            this.frameCount++;
             this.framesSinceLastFpsUpdate++;
-            if (now - this.lastFpsUpdate > 1000) {
-                this.fps = Math.round(this.framesSinceLastFpsUpdate * 1000 / (now - this.lastFpsUpdate));
+            
+            if (now - this.lastFpsUpdate > 1000) { // Update FPS every second
+                this.fps = this.framesSinceLastFpsUpdate * 1000 / (now - this.lastFpsUpdate);
                 this.lastFpsUpdate = now;
                 this.framesSinceLastFpsUpdate = 0;
+                
+                // Log FPS in debug mode
+                if (this.debugMode) {
+                    console.log(`FPS: ${this.fps.toFixed(1)}`);
+                }
             }
         } catch (error) {
             console.error("Error in animation loop:", error);
             // Continue animation despite errors
-            requestAnimationFrame(this.animate.bind(this));
+            requestAnimationFrame(this.animate);
         }
     }
 
