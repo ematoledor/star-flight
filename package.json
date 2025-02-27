@@ -26,9 +26,9 @@
   "dependencies": {
     "three": "^0.157.0",
     "cannon-es": "^0.20.0",
-    "howler": "^2.2.3"
+    "howler": "^2.2.3",
+    "vite": "4.5.0"
   },
   "devDependencies": {
-    "vite": "^4.5.0"
   }
 } 
