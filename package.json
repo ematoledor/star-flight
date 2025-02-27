@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "A 3D space flight simulator with Minecraft-style graphics",
   "private": true,
-  "type": "module",
   "engines": {
     "node": "18.x"
   },
@@ -11,7 +10,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "vercel-build": "node build.js"
+    "vercel-build": "vite build"
   },
   "keywords": [
     "three.js",
