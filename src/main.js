@@ -146,8 +146,8 @@ class Game {
     
     initThree() {
         try {
-            // Create scene
-            this.scene = new THREE.Scene();
+        // Create scene
+        this.scene = new THREE.Scene();
             
             // Create camera with wider field of view
             this.camera = new THREE.PerspectiveCamera(
@@ -163,19 +163,19 @@ class Game {
             
             // Log camera position for debugging
             console.log("Initial camera position:", this.camera.position);
-            
-            // Create renderer
+        
+        // Create renderer
             this.renderer = new THREE.WebGLRenderer({
                 antialias: true,
                 alpha: true
             });
-            this.renderer.setSize(window.innerWidth, window.innerHeight);
-            this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setPixelRatio(window.devicePixelRatio);
             this.renderer.setClearColor(0x000000, 1);
             
             // Add renderer to page
-            document.body.appendChild(this.renderer.domElement);
-            
+        document.body.appendChild(this.renderer.domElement);
+        
             // Handle window resize
             window.addEventListener('resize', () => {
                 this.camera.aspect = window.innerWidth / window.innerHeight;
@@ -184,14 +184,14 @@ class Game {
             });
             
             // Add ambient light
-            const ambientLight = new THREE.AmbientLight(0x404040);
-            this.scene.add(ambientLight);
-            
+        const ambientLight = new THREE.AmbientLight(0x404040);
+        this.scene.add(ambientLight);
+        
             // Add directional light (sun)
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-            directionalLight.position.set(1, 1, 1).normalize();
-            this.scene.add(directionalLight);
-            
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(1, 1, 1).normalize();
+        this.scene.add(directionalLight);
+        
             // Add a simple object to verify rendering is working
             const testGeometry = new THREE.SphereGeometry(50, 32, 32);
             const testMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
@@ -501,7 +501,7 @@ class Game {
                 try {
                     const OrbitControls = THREE.OrbitControls;
                     if (OrbitControls && this.camera && this.renderer) {
-                        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
                         this.controls.enableDamping = true;
                         this.controls.dampingFactor = 0.25;
                         this.controls.screenSpacePanning = false;
@@ -671,7 +671,7 @@ class Game {
                     if (element.parentNode) {
                         element.parentNode.removeChild(element);
                     }
-                }, 500);
+            }, 500);
             }
         });
         

@@ -739,7 +739,7 @@ export class UIManager {
             this.hudElements.weaponCooldown.style.width = `${cooldownPercent}%`;
             this.hudElements.weaponStatus.textContent = 'COOLDOWN';
             this.hudElements.weaponStatus.classList.add('cooldown');
-        } else {
+            } else {
             this.hudElements.weaponCooldown.style.width = '0%';
             this.hudElements.weaponStatus.textContent = 'READY';
             this.hudElements.weaponStatus.classList.remove('cooldown');
@@ -1258,7 +1258,7 @@ export class UIManager {
         // ULTRA-SIMPLE approach - no complex operations that can cause errors
         try {
             // Update basic HUD for health, shield, energy
-            if (this.spacecraft) {
+        if (this.spacecraft) {
                 // Update health
                 if (this.hudElements.healthBar && typeof this.spacecraft.health === 'number') {
                     const healthPercent = (this.spacecraft.health / this.spacecraft.maxHealth) * 100;
