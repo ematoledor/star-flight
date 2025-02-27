@@ -94,13 +94,32 @@ export class GameWorld {
     loadRemainingSectorsInBackground() {
         console.log("Loading remaining sectors in background...");
         
-        // Create other sectors with slight delay to prioritize initial rendering
-        for (let i = 1; i < this.sectors.length; i++) {
-            setTimeout(() => {
-                console.log(`Creating sector: ${this.sectors[i].name}`);
-                this.populateSector(this.sectors[i]);
-            }, i * 1000); // 1 second between each sector creation
-        }
+        // Create a function to load sectors one at a time with smaller operations
+        const loadSector = (index) => {
+            if (index >= this.sectors.length) {
+                console.log("All sectors loaded");
+                return;
+            }
+            
+            console.log(`Creating sector: ${this.sectors[index].name}`);
+            
+            // Use requestAnimationFrame to avoid setTimeout violations
+            requestAnimationFrame(() => {
+                try {
+                    this.populateSector(this.sectors[index]);
+                    
+                    // Schedule the next sector after a short delay
+                    setTimeout(() => loadSector(index + 1), 500);
+                } catch (error) {
+                    console.error(`Error loading sector ${index}:`, error);
+                    // Continue with next sector even if there's an error
+                    setTimeout(() => loadSector(index + 1), 500);
+                }
+            });
+        };
+        
+        // Start loading from the second sector (index 1)
+        setTimeout(() => loadSector(1), 2000);
     }
     
     setActiveSector(sector) {
@@ -596,16 +615,38 @@ export class GameWorld {
         }
         
         try {
+            // Create a default sector if needed
+            if (typeof sector !== 'object') {
+                console.warn('getRandomPositionInSector: Sector is not an object, returning origin');
+                return new THREE.Vector3(0, 0, 0);
+            }
+            
             // Double check position validity using type checking and truthiness
             if (!sector.position) {
-                console.warn('getRandomPositionInSector: Sector has no position property, returning origin');
-                return new THREE.Vector3(0, 0, 0);
+                // Instead of warning, create a position for the sector
+                sector.position = new THREE.Vector3(0, 0, 0);
+                console.log('getRandomPositionInSector: Added missing position to sector');
             }
             
             // Specific check for THREE.Vector3 instance
             if (!(sector.position instanceof THREE.Vector3)) {
-                console.warn('getRandomPositionInSector: Sector position is not a Vector3, returning origin');
-                return new THREE.Vector3(0, 0, 0);
+                // Convert to Vector3 if it's not already
+                if (typeof sector.position === 'object' && 
+                    'x' in sector.position && 
+                    'y' in sector.position && 
+                    'z' in sector.position) {
+                    
+                    sector.position = new THREE.Vector3(
+                        sector.position.x || 0,
+                        sector.position.y || 0,
+                        sector.position.z || 0
+                    );
+                    console.log('getRandomPositionInSector: Converted sector position to Vector3');
+                } else {
+                    // Create a new position
+                    sector.position = new THREE.Vector3(0, 0, 0);
+                    console.log('getRandomPositionInSector: Created new Vector3 for sector position');
+                }
             }
             
             // Validate all components exist and are numbers
@@ -613,8 +654,11 @@ export class GameWorld {
                 typeof sector.position.y !== 'number' || isNaN(sector.position.y) ||
                 typeof sector.position.z !== 'number' || isNaN(sector.position.z)) {
                 
-                console.warn('getRandomPositionInSector: Sector position has invalid coordinates, returning origin');
-                return new THREE.Vector3(0, 0, 0);
+                // Fix invalid coordinates instead of returning
+                sector.position.x = isNaN(sector.position.x) ? 0 : sector.position.x;
+                sector.position.y = isNaN(sector.position.y) ? 0 : sector.position.y;
+                sector.position.z = isNaN(sector.position.z) ? 0 : sector.position.z;
+                console.log('getRandomPositionInSector: Fixed invalid coordinates in sector position');
             }
             
             // Safe radius with multiple fallbacks
@@ -774,5 +818,25 @@ export class GameWorld {
         }
         
         return false;
+    }
+    
+    // Add getCurrentSector method to fix the error
+    getCurrentSector() {
+        try {
+            // If spacecraft position is not provided, return the current sector
+            if (this.currentSector) {
+                return {
+                    name: this.currentSector.name || "Unknown Sector",
+                    difficulty: this.currentSector.difficulty || 1,
+                    sector: this.currentSector
+                };
+            }
+            
+            // If no current sector is set, return a default
+            return { name: "Deep Space", difficulty: 1, sector: null };
+        } catch (error) {
+            console.error("Error in getCurrentSector:", error);
+            return { name: "Deep Space", difficulty: 1, sector: null };
+        }
     }
 } 

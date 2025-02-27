@@ -642,17 +642,25 @@ class Game {
             try {
                 if (this.uiManager) {
                     // Get current sector info safely
-                    let sectorInfo = null;
-                    if (this.gameWorld && this.gameWorld.getCurrentSector) {
+                    let sectorInfo = { name: "Deep Space", difficulty: 1, sector: null };
+                    
+                    if (this.gameWorld && this.spacecraft) {
                         try {
-                            sectorInfo = this.gameWorld.getCurrentSector();
+                            // First check if getCurrentSector method exists
+                            if (typeof this.gameWorld.getCurrentSector === 'function') {
+                                sectorInfo = this.gameWorld.getCurrentSector();
+                            } 
+                            // Fallback to getSectorAt if getCurrentSector doesn't exist
+                            else if (typeof this.gameWorld.getSectorAt === 'function') {
+                                sectorInfo = this.gameWorld.getSectorAt(this.spacecraft.position);
+                            }
                         } catch (error) {
                             console.warn('Error getting current sector:', error);
                         }
                     }
                     
                     // Update UI with current sector info and combat system
-                    this.uiManager.update(sectorInfo, this.combatSystem);
+                    this.uiManager.update(delta, sectorInfo);
                 }
             } catch (error) {
                 console.error('Error updating UI:', error);
