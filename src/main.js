@@ -24,6 +24,9 @@ class Game {
         this.upgradeSystem = null;
         this.inputManager = null;
         
+        // Debug mode
+        this.debugMode = false;
+        
         // Performance monitoring
         this.fps = 0;
         this.frameCount = 0;
@@ -375,6 +378,11 @@ class Game {
             this.toggleLaunchDock();
         });
         
+        // Register debug key (D)
+        this.inputManager.registerKeyBinding('d', () => {
+            this.toggleDebugMode();
+        });
+        
         console.log("Input bindings initialized");
         
         // Connect systems together
@@ -475,12 +483,17 @@ class Game {
                 this.camera.position.set(0, 10, 30);
                 this.camera.lookAt(new THREE.Vector3(0, 0, -100));
                 
+                console.log('Camera reset to:', this.camera.position);
+                console.log('Camera looking at: forward direction');
+                
                 // Show launch notification
                 if (this.uiManager && this.uiManager.showNotification) {
                     this.uiManager.showNotification('SPACECRAFT LAUNCHED - GOOD LUCK COMMANDER!', 'success');
                 }
                 
                 return true;
+            } else {
+                console.warn('Cannot launch: No mothership found or not docked');
             }
         } catch (error) {
             console.error("Error launching from mothership:", error);
@@ -575,6 +588,29 @@ class Game {
                 }
             } catch (error) {
                 console.warn('Error checking pause state:', error);
+            }
+            
+            // Debug camera position and scene objects
+            if (this.frameCount % 60 === 0) { // Log once per second at 60fps
+                console.log('Camera position:', this.camera.position);
+                console.log('Camera rotation:', this.camera.rotation);
+                
+                // Count visible objects in scene
+                let visibleObjects = 0;
+                if (this.scene) {
+                    this.scene.traverse(object => {
+                        if (object.visible && object instanceof THREE.Mesh) {
+                            visibleObjects++;
+                        }
+                    });
+                    console.log(`Visible objects in scene: ${visibleObjects}`);
+                }
+                
+                // Log spacecraft position if available
+                if (this.spacecraft) {
+                    console.log('Spacecraft position:', this.spacecraft.position);
+                    console.log('Spacecraft visible:', this.spacecraft.visible);
+                }
             }
             
             // Update game systems
@@ -910,6 +946,96 @@ class Game {
         errorMessage.appendChild(document.createElement('br'));
         errorMessage.appendChild(reloadButton);
         document.body.appendChild(errorMessage);
+    }
+    
+    // Add debug mode toggle
+    toggleDebugMode() {
+        this.debugMode = !this.debugMode;
+        console.log(`Debug mode: ${this.debugMode ? 'ON' : 'OFF'}`);
+        
+        if (this.debugMode) {
+            // Move camera to a position where we can see more of the scene
+            this.camera.position.set(0, 500, 500);
+            this.camera.lookAt(new THREE.Vector3(0, 0, 0));
+            
+            // Enable orbit controls for debugging
+            if (this.controls) {
+                this.controls.enabled = true;
+            }
+            
+            // Add debug helpers to the scene
+            this.addDebugHelpers();
+            
+            // Show debug notification
+            if (this.uiManager && this.uiManager.showNotification) {
+                this.uiManager.showNotification('DEBUG MODE ENABLED - Press D to toggle', 'info');
+            }
+        } else {
+            // Return to normal view if spacecraft exists
+            if (this.spacecraft) {
+                this.camera.position.copy(this.spacecraft.position);
+                this.camera.position.y += 10;
+                this.camera.position.z += 30;
+                this.camera.lookAt(new THREE.Vector3(
+                    this.spacecraft.position.x,
+                    this.spacecraft.position.y,
+                    this.spacecraft.position.z - 100
+                ));
+            }
+            
+            // Disable orbit controls if not in debug mode
+            if (this.controls) {
+                this.controls.enabled = false;
+            }
+            
+            // Remove debug helpers
+            this.removeDebugHelpers();
+            
+            // Show debug notification
+            if (this.uiManager && this.uiManager.showNotification) {
+                this.uiManager.showNotification('DEBUG MODE DISABLED', 'info');
+            }
+        }
+    }
+    
+    // Add debug helpers to visualize the scene
+    addDebugHelpers() {
+        // Add axes helper
+        this.axesHelper = new THREE.AxesHelper(1000);
+        this.scene.add(this.axesHelper);
+        
+        // Add grid helper
+        this.gridHelper = new THREE.GridHelper(2000, 20);
+        this.scene.add(this.gridHelper);
+        
+        // Log scene hierarchy
+        console.log('Scene hierarchy:');
+        this.logSceneHierarchy(this.scene);
+    }
+    
+    // Remove debug helpers
+    removeDebugHelpers() {
+        if (this.axesHelper) {
+            this.scene.remove(this.axesHelper);
+            this.axesHelper = null;
+        }
+        
+        if (this.gridHelper) {
+            this.scene.remove(this.gridHelper);
+            this.gridHelper = null;
+        }
+    }
+    
+    // Log scene hierarchy for debugging
+    logSceneHierarchy(object, indent = 0) {
+        const indentStr = ' '.repeat(indent * 2);
+        console.log(`${indentStr}${object.type}: ${object.name || 'unnamed'}`);
+        
+        if (object.children && object.children.length > 0) {
+            object.children.forEach(child => {
+                this.logSceneHierarchy(child, indent + 1);
+            });
+        }
     }
 }
 
