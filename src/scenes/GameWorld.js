@@ -38,20 +38,20 @@ export class GameWorld {
     createSectors() {
         // Create a few sectors of space
         this.sectors = [
-            { name: "Alpha Quadrant", position: new THREE.Vector3(0, 0, 0), difficulty: 1 },
-            { name: "Beta Quadrant", position: new THREE.Vector3(5000, 0, 0), difficulty: 2 },
-            { name: "Gamma Quadrant", position: new THREE.Vector3(0, 0, 5000), difficulty: 3 },
-            { name: "Delta Quadrant", position: new THREE.Vector3(5000, 0, 5000), difficulty: 4 }
+            { name: "Alpha Quadrant", position: new THREE.Vector3(0, 0, 0), difficulty: 1, radius: 1000 },
+            { name: "Beta Quadrant", position: new THREE.Vector3(5000, 0, 0), difficulty: 2, radius: 1500 },
+            { name: "Gamma Quadrant", position: new THREE.Vector3(0, 0, 5000), difficulty: 3, radius: 1800 },
+            { name: "Delta Quadrant", position: new THREE.Vector3(5000, 0, 5000), difficulty: 4, radius: 2000 }
         ];
         
         // Set initial sector
         this.setActiveSector(this.sectors[0]);
         
         // Schedule loading of other sectors in the background
-        setTimeout(() => this.loadRemainingSecotrsInBackground(), 2000);
+        setTimeout(() => this.loadRemainingSectorsInBackground(), 2000);
     }
     
-    loadRemainingSecotrsInBackground() {
+    loadRemainingSectorsInBackground() {
         console.log("Loading remaining sectors in background...");
         
         // Create other sectors with slight delay to prioritize initial rendering
@@ -180,9 +180,17 @@ export class GameWorld {
         this.scene.add(this.starField);
     }
     
-    createPlanet(sector) {
-        // Random position within sector radius
-        const position = this.getRandomPositionInSector(sector);
+    createPlanet(positionOrSector) {
+        let position;
+        
+        // Check if we received a position or a sector
+        if (positionOrSector instanceof THREE.Vector3) {
+            // We received a position directly
+            position = positionOrSector;
+        } else {
+            // We received a sector, get random position within it
+            position = this.getRandomPositionInSector(positionOrSector);
+        }
         
         // Random size and features
         const radius = 50 + Math.random() * 150;
@@ -284,17 +292,19 @@ export class GameWorld {
         return nebula;
     }
     
-    createEnemy(sector) {
+    createAlienShip(sector) {
         // Random position within sector
         const position = this.getRandomPositionInSector(sector);
         
-        // Enemy type based on danger level
+        // Enemy type based on sector difficulty
         let enemyType;
-        if (sector.dangerLevel === 1) {
+        const difficulty = sector.difficulty || 1;
+        
+        if (difficulty === 1) {
             enemyType = 'scout';
-        } else if (sector.dangerLevel === 2) {
+        } else if (difficulty === 2) {
             enemyType = Math.random() > 0.3 ? 'scout' : 'fighter';
-        } else if (sector.dangerLevel === 3) {
+        } else if (difficulty === 3) {
             enemyType = Math.random() > 0.6 ? 'fighter' : 'cruiser';
         } else {
             enemyType = Math.random() > 0.7 ? 'cruiser' : 'fighter';
@@ -311,7 +321,7 @@ export class GameWorld {
         
         // Set enemy properties
         alien.setPatrolRadius(200 + Math.random() * 300);
-        alien.setMaxSpeed(1 + Math.random() * sector.dangerLevel);
+        alien.setMaxSpeed(1 + Math.random() * difficulty);
         
         // Add to physics system if available
         if (this.physicsSystem) {
@@ -327,25 +337,16 @@ export class GameWorld {
                 this.onEnemyDestroyed(enemyType, position);
             }
             
-            // Remove from arrays
-            const sectorIndex = this.sectors.findIndex(s => s === sector);
-            if (sectorIndex !== -1) {
-                const alienIndex = this.sectors[sectorIndex].aliens.indexOf(alien);
-                if (alienIndex !== -1) {
-                    this.sectors[sectorIndex].aliens.splice(alienIndex, 1);
-                }
-            }
-            
-            const globalAlienIndex = this.aliens.indexOf(alien);
-            if (globalAlienIndex !== -1) {
-                this.aliens.splice(globalAlienIndex, 1);
+            // Remove from tracking arrays
+            const alienIndex = this.aliens.indexOf(alien);
+            if (alienIndex !== -1) {
+                this.aliens.splice(alienIndex, 1);
             }
             
             // Respawn a new enemy after a delay in the same sector
             setTimeout(() => {
                 if (this.sectors.includes(sector)) {
-                    const newAlien = this.createEnemy(sector);
-                    sector.aliens.push(newAlien);
+                    const newAlien = this.createAlienShip(sector);
                     this.aliens.push(newAlien);
                 }
             }, 30000 + Math.random() * 60000); // 30-90 seconds respawn time
@@ -355,10 +356,18 @@ export class GameWorld {
     }
     
     getRandomPositionInSector(sector) {
+        // Safety check for sector
+        if (!sector || !sector.position) {
+            console.warn('Invalid sector provided to getRandomPositionInSector');
+            // Return a default position
+            return new THREE.Vector3(0, 0, 0);
+        }
+        
         // Get random position within sector radius
+        const radius = sector.radius || 1000; // Default radius if not specified
         const theta = Math.random() * Math.PI * 2;
         const phi = Math.acos(2 * Math.random() - 1);
-        const r = sector.radius * Math.cbrt(Math.random()); // Cube root for more uniform distribution
+        const r = radius * Math.cbrt(Math.random()); // Cube root for more uniform distribution
         
         const x = sector.position.x + r * Math.sin(phi) * Math.cos(theta);
         const y = sector.position.y + r * Math.sin(phi) * Math.sin(theta);
