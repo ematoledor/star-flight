@@ -699,8 +699,8 @@ class Game {
             // Create FPS counter element
             this.createFpsCounter();
             
-            // Setup loading screen
-            this.setupLoadingScreen();
+            // Setup loading screen references
+            this.setupLoadingScreenReferences();
             
             // Manually update loading progress since we don't have actual assets loading
             this.updateLoadingProgress(10);
@@ -724,9 +724,6 @@ class Game {
             // Complete loading
             this.updateLoadingProgress(100);
             
-            // Make sure to remove the HTML loading screen as well
-            this.removeHtmlLoadingScreen();
-            
             console.log("Game initialized successfully");
         } catch (error) {
             console.error("Error initializing game:", error);
@@ -749,10 +746,28 @@ class Game {
         document.body.appendChild(this.fpsElement);
     }
     
-    setupLoadingScreen() {
+    setupLoadingScreenReferences() {
+        // Get references to the existing HTML loading elements
+        this.loadingScreen = document.getElementById('loading');
+        this.loadingBar = document.getElementById('loading-bar');
+        this.loadingText = document.getElementById('loading-text');
+        
+        // If elements don't exist in HTML, create them (fallback)
+        if (!this.loadingScreen) {
+            console.warn("Loading screen elements not found in HTML, creating dynamically");
+            this.createFallbackLoadingScreen();
+        }
+        
+        console.log("Loading screen references initialized");
+    }
+    
+    createFallbackLoadingScreen() {
+        // Only create if not already present in the DOM
+        if (document.getElementById('loading')) return;
+        
         // Create loading screen container
         const loadingScreen = document.createElement('div');
-        loadingScreen.id = 'loading-screen';
+        loadingScreen.id = 'loading';
         loadingScreen.style.position = 'fixed';
         loadingScreen.style.width = '100%';
         loadingScreen.style.height = '100%';
@@ -826,16 +841,27 @@ class Game {
             this.loadingBar.style.width = `${progress}%`;
             this.loadingText.textContent = `Loading: ${Math.round(progress)}%`;
             
+            // Update loading message based on progress
+            const subtitle = this.loadingScreen.querySelector('div:last-child');
+            if (subtitle) {
+                if (progress < 30) {
+                    subtitle.textContent = 'Initializing game systems...';
+                } else if (progress < 60) {
+                    subtitle.textContent = 'Building game world...';
+                } else if (progress < 90) {
+                    subtitle.textContent = 'Preparing for takeoff...';
+                } else {
+                    subtitle.textContent = 'Ready for launch!';
+                }
+            }
+            
             // Hide loading screen when complete
             if (progress >= 100) {
-                // Force immediate removal of loading screen
                 setTimeout(() => {
                     if (this.loadingScreen) {
-                        // Try both methods to ensure it's removed
                         this.loadingScreen.style.opacity = '0';
                         this.loadingScreen.style.transition = 'opacity 0.5s ease-in-out';
                         
-                        // Also set display none to ensure it's gone
                         setTimeout(() => {
                             if (this.loadingScreen) {
                                 this.loadingScreen.style.display = 'none';
@@ -844,15 +870,6 @@ class Game {
                                 if (this.loadingScreen.parentNode) {
                                     this.loadingScreen.parentNode.removeChild(this.loadingScreen);
                                 }
-                                
-                                // Also try removing any other loading screens that might exist
-                                const existingLoadingScreens = document.querySelectorAll('#loading-screen, #loading');
-                                existingLoadingScreens.forEach(screen => {
-                                    screen.style.display = 'none';
-                                    if (screen.parentNode) {
-                                        screen.parentNode.removeChild(screen);
-                                    }
-                                });
                                 
                                 console.log("Loading screen removed");
                             }
@@ -893,24 +910,6 @@ class Game {
         errorMessage.appendChild(document.createElement('br'));
         errorMessage.appendChild(reloadButton);
         document.body.appendChild(errorMessage);
-    }
-    
-    // Add a method to remove the HTML loading screen
-    removeHtmlLoadingScreen() {
-        // Remove the HTML loading screen
-        const htmlLoadingScreen = document.getElementById('loading');
-        if (htmlLoadingScreen) {
-            htmlLoadingScreen.style.opacity = '0';
-            htmlLoadingScreen.style.transition = 'opacity 0.5s ease-in-out';
-            
-            setTimeout(() => {
-                htmlLoadingScreen.style.display = 'none';
-                if (htmlLoadingScreen.parentNode) {
-                    htmlLoadingScreen.parentNode.removeChild(htmlLoadingScreen);
-                }
-                console.log("HTML loading screen removed");
-            }, 500);
-        }
     }
 }
 
