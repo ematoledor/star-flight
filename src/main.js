@@ -61,6 +61,9 @@ class Game {
         try {
             console.log("Initializing game...");
             
+            // Set initialized flag to false until complete
+            this.initialized = false;
+            
             // Setup loading screen
             this.setupLoadingScreenReferences();
             
@@ -78,11 +81,18 @@ class Game {
                 // Remove loading screens after a short delay
                 setTimeout(() => {
                     this.forceRemoveAllLoadingScreens();
+                    
+                    // Set initialized flag to true
+                    this.initialized = true;
+                    console.log("Game fully initialized");
                 }, 500);
             };
             
             // Initialize Three.js scene
-            this.initThree();
+            const threeInitialized = this.initThree();
+            if (!threeInitialized) {
+                throw new Error("Failed to initialize Three.js");
+            }
             
             // Initialize physics system
             this.initPhysics();
@@ -107,7 +117,7 @@ class Game {
             this.isRunning = true;
             this.animate();
             
-            console.log("Game initialized successfully");
+            console.log("Game initialization sequence completed");
             
             // Welcome message
             this.showNotification("Welcome, Explorer! You are docked at the mothership. Press L to launch and begin your journey.", 'info', 10000);
@@ -116,8 +126,21 @@ class Game {
             setTimeout(() => {
                 this.showNotification("Use WASD to move, SPACE to boost, and SHIFT to brake. Press S to scan your surroundings.", 'info', 8000);
             }, 12000);
+            
+            // Force initialization to true after a timeout in case loading manager doesn't fire
+            setTimeout(() => {
+                if (!this.initialized) {
+                    console.log("Forcing initialization after timeout");
+                    this.initialized = true;
+                    this.forceRemoveAllLoadingScreens();
+                }
+            }, 10000);
+            
+            return true;
         } catch (error) {
             console.error("Error initializing game:", error);
+            this.showErrorMessage("Failed to initialize game: " + error.message);
+            return false;
         }
     }
     
@@ -1339,6 +1362,132 @@ class Game {
         });
         
         console.log('Input manager initialized with key bindings');
+    }
+
+    // Add the animate method to handle the game loop
+    animate() {
+        if (!this.isRunning) return;
+        
+        // Request next frame
+        requestAnimationFrame(this.animate.bind(this));
+        
+        // Calculate delta time
+        const now = performance.now();
+        const delta = (now - this.lastTime) / 1000; // Convert to seconds
+        this.lastTime = now;
+        
+        // Update FPS counter
+        this.frameCount++;
+        if (now - this.lastFpsUpdate > 1000) {
+            this.fps = Math.round((this.frameCount * 1000) / (now - this.lastFpsUpdate));
+            this.frameCount = 0;
+            this.lastFpsUpdate = now;
+            
+            // Update FPS display if element exists
+            const fpsElement = document.getElementById('fps');
+            if (fpsElement) {
+                fpsElement.textContent = this.fps;
+            }
+        }
+        
+        // Update game state
+        this.update(now, delta);
+    }
+
+    // Initialize physics system
+    initPhysics() {
+        try {
+            console.log("Initializing physics system...");
+            
+            // Create physics system
+            this.physicsSystem = new PhysicsSystem();
+            
+            // Define collision groups
+            this.physicsSystem.defineCollisionGroups({
+                spacecraft: 1,
+                planet: 2,
+                alien: 4,
+                projectile: 8,
+                asteroid: 16,
+                mothership: 32
+            });
+            
+            console.log("Physics system initialized");
+            return true;
+        } catch (error) {
+            console.error("Error initializing physics system:", error);
+            return false;
+        }
+    }
+
+    // Initialize game world
+    initGameWorld() {
+        try {
+            console.log("Initializing game world...");
+            
+            // Create game world
+            this.gameWorld = new GameWorld(this.scene, this.loadingManager, this.physicsSystem);
+            
+            // Get mothership reference
+            if (this.gameWorld.motherships && this.gameWorld.motherships.length > 0) {
+                this.mothership = this.gameWorld.motherships[0];
+                console.log("Mothership reference obtained");
+            }
+            
+            console.log("Game world initialized");
+            return true;
+        } catch (error) {
+            console.error("Error initializing game world:", error);
+            return false;
+        }
+    }
+
+    // Initialize UI
+    initUI() {
+        try {
+            console.log("Initializing UI...");
+            
+            // Get UI elements
+            this.healthBar = document.getElementById('health');
+            this.shieldBar = document.getElementById('shield');
+            this.energyBar = document.getElementById('energy');
+            this.fpsElement = document.getElementById('fps');
+            this.sectorInfo = document.getElementById('sector');
+            
+            // Create exploration UI
+            this.createExplorationUI();
+            
+            console.log("UI initialized");
+            return true;
+        } catch (error) {
+            console.error("Error initializing UI:", error);
+            return false;
+        }
+    }
+
+    // Update UI elements
+    updateUI() {
+        // Update health, shield, energy if spacecraft exists
+        if (this.spacecraft) {
+            if (this.healthBar) this.healthBar.textContent = Math.round(this.spacecraft.hull);
+            if (this.shieldBar) this.shieldBar.textContent = Math.round(this.spacecraft.shields);
+            if (this.energyBar) this.energyBar.textContent = Math.round(this.spacecraft.energy);
+        }
+        
+        // Update sector info
+        if (this.sectorInfo && this.gameWorld) {
+            const currentSector = this.gameWorld.getCurrentSector();
+            if (currentSector && currentSector.name) {
+                this.sectorInfo.textContent = currentSector.name;
+            } else {
+                this.sectorInfo.textContent = "Unknown Sector";
+            }
+        }
+        
+        // Update FPS counter
+        if (this.fpsElement) {
+            this.fpsElement.textContent = this.fps;
+        }
     }
 }
 
