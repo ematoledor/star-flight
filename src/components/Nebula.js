@@ -4,6 +4,9 @@ export class Nebula extends THREE.Object3D {
     constructor(config) {
         super();
         
+        // Ensure config is an object
+        config = config || {};
+        
         this.config = Object.assign({
             position: new THREE.Vector3(0, 0, 0),
             radius: 1000,
@@ -13,18 +16,38 @@ export class Nebula extends THREE.Object3D {
             particleSize: 80
         }, config);
         
-        this.position.copy(this.config.position);
+        // Safely copy position
+        try {
+            if (this.config.position instanceof THREE.Vector3) {
+                this.position.copy(this.config.position);
+            } else {
+                console.warn("Nebula: Invalid position provided, using default");
+                this.position.set(0, 0, 0);
+            }
+        } catch (e) {
+            console.error("Nebula: Error setting position:", e);
+            this.position.set(0, 0, 0);
+        }
+        
         this.scene = this.config.scene;
         this.particles = [];
         this.time = 0;
         
         // Add this object to the scene
         if (this.scene) {
-            this.scene.add(this);
+            try {
+                this.scene.add(this);
+            } catch (e) {
+                console.error("Nebula: Could not add to scene:", e);
+            }
         }
         
         // Create nebula effect
-        this.createNebula();
+        try {
+            this.createNebula();
+        } catch (e) {
+            console.error("Nebula: Error creating nebula effect:", e);
+        }
     }
     
     createNebula() {

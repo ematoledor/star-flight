@@ -241,54 +241,81 @@ export class GameWorld {
     }
     
     createPlanet(positionOrSector) {
-        let position;
-        
-        // Check if we received a position or a sector
-        if (positionOrSector instanceof THREE.Vector3) {
-            // We received a position directly
-            position = positionOrSector;
-        } else {
-            // We received a sector, get random position within it
-            position = this.getRandomPositionInSector(positionOrSector);
-        }
-        
-        // Random size and features
-        const radius = 50 + Math.random() * 150;
-        const hasRings = Math.random() > 0.7;
-        const hasMoons = Math.random() > 0.5;
-        const moonCount = hasMoons ? Math.floor(Math.random() * 3) + 1 : 0;
-        
-        // Random planet type
-        const planetTypes = [
-            'terrestrial',
-            'gas-giant',
-            'ice-giant',
-            'desert',
-            'lava',
-            'ocean'
-        ];
-        const type = planetTypes[Math.floor(Math.random() * planetTypes.length)];
-        
-        // Create planet
-        const planet = new Planet({
-            scene: this.scene,
-            position: position,
-            radius: radius,
-            type: type,
-            hasRings: hasRings,
-            moonCount: moonCount,
-            loadingManager: this.loadingManager
-        });
-        
-        // Add to physics system if available
-        if (this.physicsSystem) {
-            this.physicsSystem.addObject(planet);
-            if (this.physicsSystem.collisionGroups) {
-                planet.collisionGroup = this.physicsSystem.collisionGroups.planet;
+        try {
+            let position;
+            
+            // Check if we received a position or a sector
+            if (positionOrSector instanceof THREE.Vector3) {
+                // We received a position directly
+                // Clone it to avoid reference issues
+                position = positionOrSector.clone();
+            } else if (positionOrSector && typeof positionOrSector === 'object') {
+                // We received a sector, get random position within it
+                position = this.getRandomPositionInSector(positionOrSector);
+            } else {
+                // Invalid input, use default position
+                console.warn("createPlanet: Invalid position or sector provided, using default position");
+                position = new THREE.Vector3(0, 0, 0);
             }
+            
+            // Ensure position is valid
+            if (!position || !(position instanceof THREE.Vector3)) {
+                console.error("createPlanet: Failed to create valid position, using origin");
+                position = new THREE.Vector3(0, 0, 0);
+            }
+            
+            // Random size and features
+            const radius = 50 + Math.random() * 150;
+            const hasRings = Math.random() > 0.7;
+            const hasMoons = Math.random() > 0.5;
+            const moonCount = hasMoons ? Math.floor(Math.random() * 3) + 1 : 0;
+            
+            // Random planet type
+            const planetTypes = [
+                'terrestrial',
+                'gas-giant',
+                'ice-giant',
+                'desert',
+                'lava',
+                'ocean'
+            ];
+            const type = planetTypes[Math.floor(Math.random() * planetTypes.length)];
+            
+            // Create planet with error handling
+            try {
+                // Create planet
+                const planet = new Planet({
+                    scene: this.scene,
+                    position: position,
+                    radius: radius,
+                    type: type,
+                    hasRings: hasRings,
+                    moonCount: moonCount,
+                    loadingManager: this.loadingManager
+                });
+                
+                // Add to physics system if available
+                if (this.physicsSystem) {
+                    try {
+                        this.physicsSystem.addObject(planet);
+                        if (this.physicsSystem.collisionGroups) {
+                            planet.collisionGroup = this.physicsSystem.collisionGroups.planet;
+                        }
+                    } catch (physicsError) {
+                        console.error("createPlanet: Error adding to physics system:", physicsError);
+                        // Continue even if physics fails
+                    }
+                }
+                
+                return planet;
+            } catch (planetCreationError) {
+                console.error("createPlanet: Error creating planet:", planetCreationError);
+                return null;
+            }
+        } catch (error) {
+            console.error("createPlanet: Critical error:", error);
+            return null;
         }
-        
-        return planet;
     }
     
     createAsteroidField(sector) {
@@ -535,48 +562,93 @@ export class GameWorld {
     }
     
     getRandomPositionInSector(sector) {
+        // Ultra-defensive programming to handle any possible error condition
+        
+        // First, return a safe default if sector is falsy
+        if (!sector) {
+            console.warn('getRandomPositionInSector: No sector provided, returning origin');
+            return new THREE.Vector3(0, 0, 0);
+        }
+        
         try {
-            // Safety check for sector - absolutely ensure we return a valid Vector3
-            if (!sector) {
-                console.warn('No sector provided to getRandomPositionInSector, returning default position');
+            // Double check position validity using type checking and truthiness
+            if (!sector.position) {
+                console.warn('getRandomPositionInSector: Sector has no position property, returning origin');
                 return new THREE.Vector3(0, 0, 0);
             }
             
-            // Safety check for sector position
-            if (!sector.position || typeof sector.position.x !== 'number') {
-                console.warn('Sector has invalid position property, returning default position');
+            // Specific check for THREE.Vector3 instance
+            if (!(sector.position instanceof THREE.Vector3)) {
+                console.warn('getRandomPositionInSector: Sector position is not a Vector3, returning origin');
                 return new THREE.Vector3(0, 0, 0);
             }
             
-            // Ensure we have a valid radius
-            const radius = (sector.radius && typeof sector.radius === 'number') ? sector.radius : 1000;
+            // Validate all components exist and are numbers
+            if (typeof sector.position.x !== 'number' || isNaN(sector.position.x) ||
+                typeof sector.position.y !== 'number' || isNaN(sector.position.y) ||
+                typeof sector.position.z !== 'number' || isNaN(sector.position.z)) {
+                
+                console.warn('getRandomPositionInSector: Sector position has invalid coordinates, returning origin');
+                return new THREE.Vector3(0, 0, 0);
+            }
             
-            // Get random position within sector radius with defensive coding
+            // Safe radius with multiple fallbacks
+            const radius = (sector.radius && typeof sector.radius === 'number' && !isNaN(sector.radius) && isFinite(sector.radius)) 
+                ? sector.radius 
+                : 1000;
+            
+            // Get random position with exception handling on each calculation
             try {
+                // Safely generate random angles
                 const theta = Math.random() * Math.PI * 2;
-                const phi = Math.acos(2 * Math.random() - 1);
-                const r = radius * Math.cbrt(Math.random()); // Cube root for more uniform distribution
+                const phi = Math.random() * Math.PI; // Safer than using acos which could produce NaN
                 
-                const x = sector.position.x + r * Math.sin(phi) * Math.cos(theta);
-                const y = sector.position.y + r * Math.sin(phi) * Math.sin(theta);
-                const z = sector.position.z + r * Math.cos(phi);
-                
-                // Final sanity check - if any coordinates are NaN or infinite, return default
-                if (isNaN(x) || isNaN(y) || isNaN(z) || 
-                    !isFinite(x) || !isFinite(y) || !isFinite(z)) {
-                    console.warn('Generated invalid coordinates in getRandomPositionInSector, using fallback');
-                    return new THREE.Vector3(sector.position.x, sector.position.y, sector.position.z);
+                // Safely generate random radius
+                let r;
+                try {
+                    r = radius * Math.pow(Math.random(), 1/3); // Safer than cbrt which might not be available everywhere
+                } catch (e) {
+                    r = radius * Math.random(); // Ultimate fallback
                 }
                 
+                // Calculate position components with defensive coding
+                let x, y, z;
+                try {
+                    x = sector.position.x + r * Math.sin(phi) * Math.cos(theta);
+                    y = sector.position.y + r * Math.sin(phi) * Math.sin(theta);
+                    z = sector.position.z + r * Math.cos(phi);
+                } catch (e) {
+                    // If any calculation fails, use a simpler approach
+                    console.warn('getRandomPositionInSector: Error in position calculation, using simpler fallback');
+                    x = sector.position.x + (Math.random() - 0.5) * radius * 2;
+                    y = sector.position.y + (Math.random() - 0.5) * radius * 2;
+                    z = sector.position.z + (Math.random() - 0.5) * radius * 2;
+                }
+                
+                // Final validation of all calculated values
+                if (isNaN(x) || !isFinite(x) || isNaN(y) || !isFinite(y) || isNaN(z) || !isFinite(z)) {
+                    console.warn('getRandomPositionInSector: Generated invalid coordinates, returning sector position');
+                    return new THREE.Vector3(
+                        sector.position.x, 
+                        sector.position.y, 
+                        sector.position.z
+                    );
+                }
+                
+                // Return validated position
                 return new THREE.Vector3(x, y, z);
             } catch (innerError) {
-                console.error('Error calculating random position:', innerError);
-                // Return the sector position as fallback
-                return new THREE.Vector3(sector.position.x, sector.position.y, sector.position.z);
+                console.error('getRandomPositionInSector: Error calculating random position:', innerError);
+                // Return sector position as fallback
+                return new THREE.Vector3(
+                    sector.position.x || 0, 
+                    sector.position.y || 0, 
+                    sector.position.z || 0
+                );
             }
-        } catch (error) {
-            console.error('Critical error in getRandomPositionInSector:', error);
-            // Absolute fallback to origin
+        } catch (outerError) {
+            console.error('getRandomPositionInSector: Critical error:', outerError);
+            // Ultimate fallback to origin
             return new THREE.Vector3(0, 0, 0);
         }
     }
