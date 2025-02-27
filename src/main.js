@@ -1089,48 +1089,143 @@ class Game {
     
     // Scan surroundings for points of interest
     scanSurroundings() {
-        if (!this.spacecraft || !this.gameWorld) return;
-        
-        // Show scanning effect
-        if (this.uiManager && this.uiManager.showNotification) {
-            this.uiManager.showNotification('SCANNING SURROUNDINGS...', 'info');
+        if (!this.spacecraft || !this.gameWorld) {
+            console.error("Cannot scan surroundings: spacecraft or game world not available");
+            return;
         }
         
-        // Simulate scanning delay
-        setTimeout(() => {
-            // Get nearby objects from game world
-            const nearbyObjects = this.gameWorld.getNearbyObjects(this.spacecraft.position, 1000);
+        const spacecraft = this.spacecraft;
+        const position = spacecraft.position;
+        const scanRadius = 5000; // Units to scan
+        
+        console.log(`Scanning surroundings at position (${position.x.toFixed(0)}, ${position.y.toFixed(0)}, ${position.z.toFixed(0)})`);
+        
+        // Create a scan results container
+        let scanResults = [];
+        
+        // Scan for planets
+        if (this.gameWorld.planets) {
+            this.gameWorld.planets.forEach(planet => {
+                if (!planet || !planet.position) return;
+                
+                const distance = position.distanceTo(planet.position);
+                if (distance <= scanRadius) {
+                    scanResults.push({
+                        type: 'planet',
+                        name: planet.name || 'Unknown Planet',
+                        distance: distance,
+                        position: planet.position.clone(),
+                        object: planet
+                    });
+                }
+            });
+        }
+        
+        // Scan for other objects (moons, asteroids, etc.)
+        if (this.gameWorld.moons) {
+            this.gameWorld.moons.forEach(moon => {
+                if (!moon || !moon.position) return;
+                
+                const distance = position.distanceTo(moon.position);
+                if (distance <= scanRadius) {
+                    scanResults.push({
+                        type: 'moon',
+                        name: moon.name || 'Unknown Moon',
+                        distance: distance,
+                        position: moon.position.clone(),
+                        object: moon
+                    });
+                }
+            });
+        }
+        
+        // Sort results by distance
+        scanResults.sort((a, b) => a.distance - b.distance);
+        
+        // Display results
+        if (scanResults.length > 0) {
+            console.log(`Found ${scanResults.length} objects within ${scanRadius} units:`);
             
-            if (nearbyObjects && nearbyObjects.length > 0) {
-                // Filter and categorize objects
-                const planets = nearbyObjects.filter(obj => obj.type === 'planet');
-                const anomalies = nearbyObjects.filter(obj => obj.type === 'anomaly');
-                const ships = nearbyObjects.filter(obj => obj.type === 'ship' || obj.type === 'alien');
-                const resources = nearbyObjects.filter(obj => obj.type === 'resource' || obj.type === 'asteroid');
+            let resultsHTML = `<div style="max-height: 300px; overflow-y: auto;">
+                <h3 style="margin-top: 0; color: #00aaff;">Scan Results</h3>
+                <p>Found ${scanResults.length} objects within ${scanRadius} units:</p>
+                <ul style="padding-left: 20px;">`;
                 
-                // Report findings
-                let message = 'SCAN COMPLETE: ';
-                if (planets.length > 0) message += `${planets.length} planets, `;
-                if (anomalies.length > 0) message += `${anomalies.length} anomalies, `;
-                if (ships.length > 0) message += `${ships.length} ships, `;
-                if (resources.length > 0) message += `${resources.length} resources, `;
+            scanResults.forEach(result => {
+                console.log(`- ${result.name} (${result.type}): ${result.distance.toFixed(0)} units away`);
                 
-                message = message.endsWith(', ') ? message.slice(0, -2) : message + 'Nothing found';
-                
-                if (this.uiManager && this.uiManager.showNotification) {
-                    this.uiManager.showNotification(message, 'success');
-                }
-                
-                // Update UI with scan results
-                if (this.uiManager && this.uiManager.updateScanResults) {
-                    this.uiManager.updateScanResults(nearbyObjects);
-                }
-            } else {
-                if (this.uiManager && this.uiManager.showNotification) {
-                    this.uiManager.showNotification('SCAN COMPLETE: No objects detected', 'info');
-                }
-            }
-        }, 1500);
+                resultsHTML += `<li style="margin-bottom: 5px;">
+                    <strong>${result.name}</strong> (${result.type})<br>
+                    Distance: ${result.distance.toFixed(0)} units<br>
+                    Position: (${result.position.x.toFixed(0)}, ${result.position.y.toFixed(0)}, ${result.position.z.toFixed(0)})
+                    <button class="goto-button" data-name="${result.name}" style="background: #44cc44; border: none; color: white; padding: 2px 5px; border-radius: 3px; cursor: pointer; margin-left: 5px; font-size: 12px;">Go To</button>
+                </li>`;
+            });
+            
+            resultsHTML += `</ul></div>`;
+            
+            // Create a modal to display results
+            const modal = document.createElement('div');
+            modal.style.position = 'fixed';
+            modal.style.top = '50%';
+            modal.style.left = '50%';
+            modal.style.transform = 'translate(-50%, -50%)';
+            modal.style.backgroundColor = 'rgba(0, 0, 0, 0.9)';
+            modal.style.color = 'white';
+            modal.style.padding = '20px';
+            modal.style.borderRadius = '10px';
+            modal.style.zIndex = '2000';
+            modal.style.maxWidth = '500px';
+            modal.style.boxShadow = '0 0 20px rgba(0, 100, 255, 0.5)';
+            
+            modal.innerHTML = resultsHTML + `
+                <div style="text-align: center; margin-top: 15px;">
+                    <button id="close-scan-modal" style="background: #ff5555; border: none; color: white; padding: 5px 15px; border-radius: 3px; cursor: pointer;">Close</button>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Add event listener to close button
+            document.getElementById('close-scan-modal').addEventListener('click', () => {
+                document.body.removeChild(modal);
+            });
+            
+            // Add event listeners to "Go To" buttons
+            const gotoButtons = modal.querySelectorAll('.goto-button');
+            gotoButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const objectName = button.getAttribute('data-name');
+                    const result = scanResults.find(r => r.name === objectName);
+                    
+                    if (result && result.object && result.object.position) {
+                        // Teleport to the object
+                        spacecraft.position.set(
+                            result.object.position.x + 200,
+                            result.object.position.y + 100,
+                            result.object.position.z + 200
+                        );
+                        
+                        // Reset velocity
+                        spacecraft.velocity.set(0, 0, 0);
+                        
+                        // Show notification
+                        this.showNotification(`Teleported to ${result.name}`, "info", 3000);
+                        
+                        // Close the modal
+                        document.body.removeChild(modal);
+                    }
+                });
+            });
+            
+            // Show notification
+            this.showNotification(`Scan complete. Found ${scanResults.length} objects.`, "info", 3000);
+        } else {
+            console.log(`No objects found within ${scanRadius} units.`);
+            this.showNotification("Scan complete. No objects found nearby.", "info", 3000);
+        }
+        
+        return scanResults;
     }
     
     // Toggle galactic map
@@ -2961,6 +3056,55 @@ class Game {
             console.error("Error creating minimal solar system:", error);
         }
     }
+
+    // Add a notification method if it doesn't exist
+    showNotification(message, type = "info", duration = 3000) {
+        // Check if notification container exists
+        let notificationContainer = document.getElementById('game-notifications');
+        
+        if (!notificationContainer) {
+            // Create notification container
+            notificationContainer = document.createElement('div');
+            notificationContainer.id = 'game-notifications';
+            notificationContainer.style.position = 'fixed';
+            notificationContainer.style.bottom = '20px';
+            notificationContainer.style.right = '20px';
+            notificationContainer.style.zIndex = '1000';
+            document.body.appendChild(notificationContainer);
+        }
+        
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.style.backgroundColor = type === 'error' ? 'rgba(255, 50, 50, 0.8)' : 'rgba(0, 0, 0, 0.8)';
+        notification.style.color = 'white';
+        notification.style.padding = '10px 15px';
+        notification.style.marginTop = '10px';
+        notification.style.borderRadius = '5px';
+        notification.style.boxShadow = '0 0 10px rgba(0, 0, 0, 0.2)';
+        notification.style.borderLeft = type === 'error' ? '4px solid #ff3232' : '4px solid #00aaff';
+        notification.style.fontFamily = 'Arial, sans-serif';
+        notification.style.transition = 'all 0.3s ease';
+        notification.style.opacity = '0';
+        notification.textContent = message;
+        
+        // Add to container
+        notificationContainer.appendChild(notification);
+        
+        // Animate in
+        setTimeout(() => {
+            notification.style.opacity = '1';
+        }, 10);
+        
+        // Remove after duration
+        setTimeout(() => {
+            notification.style.opacity = '0';
+            setTimeout(() => {
+                if (notification.parentNode === notificationContainer) {
+                    notificationContainer.removeChild(notification);
+                }
+            }, 300);
+        }, duration);
+    }
 }
 
 // Initialize the game when the window loads
@@ -3252,4 +3396,312 @@ window.addEventListener('DOMContentLoaded', () => {
         
         console.log("Continuous key checker set up successfully");
     }, 3000); // Wait 3 seconds for game to initialize
+}); 
+
+// Add this after the continuous key checker
+
+// Add a direct control system that hooks into the game update loop
+window.addEventListener('DOMContentLoaded', () => {
+    console.log("Setting up direct control system in game loop");
+    
+    // Wait a bit to ensure the game is initialized
+    setTimeout(() => {
+        // Get the game instance
+        const game = window.game;
+        
+        if (!game) {
+            console.error("Game not available for direct control system");
+            return;
+        }
+        
+        // Create a key state tracker that will be used by the game loop
+        window.directControlKeyState = {};
+        
+        // Set up key listeners
+        document.addEventListener('keydown', (event) => {
+            window.directControlKeyState[event.key.toLowerCase()] = true;
+            console.log(`Key down: ${event.key.toLowerCase()}`);
+        });
+        
+        document.addEventListener('keyup', (event) => {
+            window.directControlKeyState[event.key.toLowerCase()] = false;
+            console.log(`Key up: ${event.key.toLowerCase()}`);
+        });
+        
+        // Override the game's update method to include our direct controls
+        const originalUpdate = game.update;
+        game.update = function(time, delta) {
+            // First, apply our direct controls
+            if (this.spacecraft && window.directControlKeyState) {
+                const spacecraft = this.spacecraft;
+                
+                // Movement controls
+                if (window.directControlKeyState['w']) {
+                    spacecraft.accelerate(1, delta);
+                    console.log("Moving forward");
+                }
+                
+                if (window.directControlKeyState['s']) {
+                    spacecraft.accelerate(-0.5, delta);
+                    console.log("Moving backward");
+                }
+                
+                if (window.directControlKeyState['a']) {
+                    spacecraft.strafe(-1, delta);
+                    console.log("Strafing left");
+                }
+                
+                if (window.directControlKeyState['d']) {
+                    spacecraft.strafe(1, delta);
+                    console.log("Strafing right");
+                }
+                
+                // Special actions
+                if (window.directControlKeyState[' ']) {
+                    spacecraft.boost(delta);
+                    console.log("Boosting");
+                }
+                
+                if (window.directControlKeyState['shift']) {
+                    spacecraft.brake(delta);
+                    console.log("Braking");
+                }
+                
+                // Rotation controls
+                if (window.directControlKeyState['arrowleft']) {
+                    spacecraft.rotate('y', -1, delta);
+                    console.log("Rotating left");
+                }
+                
+                if (window.directControlKeyState['arrowright']) {
+                    spacecraft.rotate('y', 1, delta);
+                    console.log("Rotating right");
+                }
+                
+                if (window.directControlKeyState['arrowup']) {
+                    spacecraft.rotate('x', -1, delta);
+                    console.log("Rotating up");
+                }
+                
+                if (window.directControlKeyState['arrowdown']) {
+                    spacecraft.rotate('x', 1, delta);
+                    console.log("Rotating down");
+                }
+                
+                if (window.directControlKeyState['q']) {
+                    spacecraft.rotate('z', -1, delta);
+                    console.log("Rolling left");
+                }
+                
+                if (window.directControlKeyState['e']) {
+                    spacecraft.rotate('z', 1, delta);
+                    console.log("Rolling right");
+                }
+            }
+            
+            // Then call the original update method
+            return originalUpdate.call(this, time, delta);
+        };
+        
+        console.log("Direct control system in game loop set up successfully");
+        
+        // Add a notification to the user
+        if (game.showNotification) {
+            game.showNotification("Direct control system activated. Try using WASD to move the spacecraft.", "info", 5000);
+        }
+    }, 4000); // Wait 4 seconds for game to initialize
+}); 
+
+// Add this after the direct control system
+
+// Add a navigation system to help explore the solar system
+window.addEventListener('DOMContentLoaded', () => {
+    console.log("Setting up navigation system");
+    
+    // Wait a bit to ensure the game is initialized
+    setTimeout(() => {
+        // Get the game instance
+        const game = window.game;
+        
+        if (!game) {
+            console.error("Game not available for navigation system");
+            return;
+        }
+        
+        // Create a navigation panel
+        const navPanel = document.createElement('div');
+        navPanel.style.position = 'fixed';
+        navPanel.style.top = '10px';
+        navPanel.style.left = '10px';
+        navPanel.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        navPanel.style.color = 'white';
+        navPanel.style.padding = '10px';
+        navPanel.style.borderRadius = '5px';
+        navPanel.style.fontFamily = 'Arial, sans-serif';
+        navPanel.style.fontSize = '14px';
+        navPanel.style.zIndex = '1000';
+        navPanel.style.maxWidth = '300px';
+        
+        // Add navigation information
+        navPanel.innerHTML = `
+            <h3 style="margin-top: 0; color: #00aaff;">Navigation System</h3>
+            <div id="current-location">
+                <strong>Current Location:</strong> <span id="location-value">Unknown</span>
+            </div>
+            <div id="coordinates" style="margin-top: 5px;">
+                <strong>Coordinates:</strong> <span id="coordinates-value">0, 0, 0</span>
+            </div>
+            <div id="speed" style="margin-top: 5px;">
+                <strong>Speed:</strong> <span id="speed-value">0</span>
+            </div>
+            <div id="nearest-object" style="margin-top: 5px;">
+                <strong>Nearest Object:</strong> <span id="nearest-object-value">None</span>
+            </div>
+            <div id="planets-list" style="margin-top: 10px;">
+                <strong>Solar System:</strong>
+                <ul id="planets-list-items" style="margin: 5px 0; padding-left: 20px;">
+                    <li>Loading planets...</li>
+                </ul>
+            </div>
+            <div style="margin-top: 10px;">
+                <button id="scan-button" style="background: #00aaff; border: none; color: white; padding: 5px 10px; border-radius: 3px; cursor: pointer;">Scan Surroundings</button>
+                <button id="goto-earth-button" style="background: #44cc44; border: none; color: white; padding: 5px 10px; border-radius: 3px; cursor: pointer; margin-left: 5px;">Go to Earth</button>
+            </div>
+        `;
+        
+        // Add to document
+        document.body.appendChild(navPanel);
+        
+        // Add event listeners to buttons
+        document.getElementById('scan-button').addEventListener('click', () => {
+            if (game.scanSurroundings) {
+                game.scanSurroundings();
+            }
+        });
+        
+        document.getElementById('goto-earth-button').addEventListener('click', () => {
+            if (game.gameWorld && game.spacecraft) {
+                // Find Earth
+                const earth = game.gameWorld.planets.find(planet => planet.name === "Earth");
+                if (earth) {
+                    // Set spacecraft position near Earth
+                    game.spacecraft.position.set(
+                        earth.position.x + 200,
+                        earth.position.y + 100,
+                        earth.position.z + 200
+                    );
+                    
+                    // Reset velocity
+                    game.spacecraft.velocity.set(0, 0, 0);
+                    
+                    // Show notification
+                    if (game.showNotification) {
+                        game.showNotification("Teleported to Earth", "info", 3000);
+                    }
+                } else {
+                    console.error("Earth not found in the game world");
+                    if (game.showNotification) {
+                        game.showNotification("Earth not found in the solar system", "error", 3000);
+                    }
+                }
+            }
+        });
+        
+        // Update navigation panel periodically
+        const updateNavPanel = () => {
+            if (!game || !game.spacecraft || !game.gameWorld) return;
+            
+            const spacecraft = game.spacecraft;
+            const gameWorld = game.gameWorld;
+            
+            // Update coordinates
+            const coords = spacecraft.position;
+            document.getElementById('coordinates-value').textContent = 
+                `${coords.x.toFixed(0)}, ${coords.y.toFixed(0)}, ${coords.z.toFixed(0)}`;
+            
+            // Update speed
+            const speed = spacecraft.velocity.length();
+            document.getElementById('speed-value').textContent = `${speed.toFixed(1)} units/s`;
+            
+            // Update current location
+            let locationInfo = gameWorld.getSectorAt ? gameWorld.getSectorAt(coords) : { name: "Unknown" };
+            document.getElementById('location-value').textContent = locationInfo.name || "Unknown";
+            
+            // Find nearest object
+            let nearestObject = null;
+            let nearestDistance = Infinity;
+            
+            // Check planets
+            if (gameWorld.planets) {
+                gameWorld.planets.forEach(planet => {
+                    if (!planet || !planet.position) return;
+                    
+                    const distance = coords.distanceTo(planet.position);
+                    if (distance < nearestDistance) {
+                        nearestObject = planet;
+                        nearestDistance = distance;
+                    }
+                });
+            }
+            
+            // Update nearest object display
+            if (nearestObject) {
+                document.getElementById('nearest-object-value').textContent = 
+                    `${nearestObject.name || "Unknown"} (${nearestDistance.toFixed(0)} units)`;
+            } else {
+                document.getElementById('nearest-object-value').textContent = "None";
+            }
+            
+            // Update planets list
+            if (gameWorld.planets && gameWorld.planets.length > 0) {
+                const planetsList = document.getElementById('planets-list-items');
+                
+                // Only update if needed
+                if (planetsList.innerHTML === '<li>Loading planets...</li>' || gameWorld.planets.length !== planetsList.children.length) {
+                    planetsList.innerHTML = '';
+                    
+                    gameWorld.planets.forEach(planet => {
+                        if (!planet || !planet.name) return;
+                        
+                        const listItem = document.createElement('li');
+                        listItem.textContent = planet.name;
+                        listItem.style.cursor = 'pointer';
+                        listItem.style.color = '#00aaff';
+                        
+                        // Add click event to navigate to the planet
+                        listItem.addEventListener('click', () => {
+                            if (game.spacecraft) {
+                                // Set spacecraft position near the planet
+                                game.spacecraft.position.set(
+                                    planet.position.x + 200,
+                                    planet.position.y + 100,
+                                    planet.position.z + 200
+                                );
+                                
+                                // Reset velocity
+                                game.spacecraft.velocity.set(0, 0, 0);
+                                
+                                // Show notification
+                                if (game.showNotification) {
+                                    game.showNotification(`Teleported to ${planet.name}`, "info", 3000);
+                                }
+                            }
+                        });
+                        
+                        planetsList.appendChild(listItem);
+                    });
+                }
+            }
+        };
+        
+        // Update every second
+        setInterval(updateNavPanel, 1000);
+        
+        console.log("Navigation system set up successfully");
+        
+        // Add a notification to the user
+        if (game.showNotification) {
+            game.showNotification("Navigation system activated. Use the panel to explore the solar system.", "info", 5000);
+        }
+    }, 5000); // Wait 5 seconds for game to initialize
 }); 
