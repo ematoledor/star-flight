@@ -270,9 +270,19 @@ class Game {
         
         // 10. Setup input management
         this.inputManager = InputManager.getInstance();
+        
+        // Register upgrade menu key
         this.inputManager.registerKeyBinding('u', () => {
             this.upgradeSystem.toggleUpgradeMenu();
         });
+        
+        // Register pause key (ESC)
+        this.inputManager.registerKeyBinding('Escape', () => {
+            if (this.uiManager) {
+                this.uiManager.togglePause();
+            }
+        });
+        
         console.log("Input bindings initialized");
         
         // Connect systems together
@@ -370,8 +380,10 @@ class Game {
         try {
             const delta = this.clock.getDelta();
             
-            // Only update if UI is not paused
-            if (!this.uiManager || !this.uiManager.isPaused()) {
+            // Only update if UI is not paused - use optional chaining to avoid errors
+            const isPaused = this.uiManager?.isPaused?.() || false;
+            
+            if (!isPaused) {
                 // Update game systems in the correct order
                 
                 // 1. Update physics

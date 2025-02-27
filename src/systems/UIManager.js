@@ -10,6 +10,7 @@ export class UIManager {
         this.isInitialized = false;
         this.currentSector = null;
         this.onPlayerDeath = null; // Callback for death events
+        this.isPausedState = false; // Add a paused state flag
         
         // Initialize UI
         this.initializeUI();
@@ -993,5 +994,94 @@ export class UIManager {
             // Reset player health to prevent multiple death screens
             this.spacecraft.health = 0.1;
         }
+    }
+    
+    /**
+     * Check if the game is paused
+     * @returns {boolean} True if the game is paused
+     */
+    isPaused() {
+        return this.isPausedState;
+    }
+    
+    /**
+     * Set the pause state of the game
+     * @param {boolean} value - True to pause, false to unpause
+     */
+    setPaused(value) {
+        this.isPausedState = value;
+        // Update UI to reflect pause state
+        if (value) {
+            this.showPauseMenu();
+        } else {
+            this.hidePauseMenu();
+        }
+    }
+    
+    /**
+     * Toggle the pause state of the game
+     * @returns {boolean} New pause state
+     */
+    togglePause() {
+        this.isPausedState = !this.isPausedState;
+        // Update UI to reflect pause state
+        if (this.isPausedState) {
+            this.showPauseMenu();
+        } else {
+            this.hidePauseMenu();
+        }
+        return this.isPausedState;
+    }
+    
+    /**
+     * Show the pause menu
+     */
+    showPauseMenu() {
+        // Create pause menu overlay if it doesn't exist
+        if (!this.pauseMenu) {
+            this.pauseMenu = document.createElement('div');
+            this.pauseMenu.style.position = 'absolute';
+            this.pauseMenu.style.width = '100%';
+            this.pauseMenu.style.height = '100%';
+            this.pauseMenu.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+            this.pauseMenu.style.display = 'flex';
+            this.pauseMenu.style.flexDirection = 'column';
+            this.pauseMenu.style.justifyContent = 'center';
+            this.pauseMenu.style.alignItems = 'center';
+            this.pauseMenu.style.zIndex = '1000';
+            this.pauseMenu.style.color = 'white';
+            this.pauseMenu.style.fontFamily = 'Arial, sans-serif';
+            
+            const pauseTitle = document.createElement('h1');
+            pauseTitle.textContent = 'GAME PAUSED';
+            pauseTitle.style.marginBottom = '20px';
+            pauseTitle.style.fontSize = '48px';
+            pauseTitle.style.textShadow = '0 0 10px rgba(0, 100, 255, 0.8)';
+            
+            const pauseMessage = document.createElement('p');
+            pauseMessage.textContent = 'Press ESC to resume';
+            pauseMessage.style.fontSize = '24px';
+            pauseMessage.style.marginBottom = '30px';
+            
+            this.pauseMenu.appendChild(pauseTitle);
+            this.pauseMenu.appendChild(pauseMessage);
+            
+            document.body.appendChild(this.pauseMenu);
+        }
+        
+        // Show the pause menu
+        this.pauseMenu.style.display = 'flex';
+        console.log("Game paused");
+    }
+    
+    /**
+     * Hide the pause menu
+     */
+    hidePauseMenu() {
+        // Hide the pause menu if it exists
+        if (this.pauseMenu) {
+            this.pauseMenu.style.display = 'none';
+        }
+        console.log("Game resumed");
     }
 } 
