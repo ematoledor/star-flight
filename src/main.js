@@ -5,6 +5,10 @@ import { Spacecraft } from './entities/Spacecraft.js';
 import { InputHandler } from './systems/InputHandler.js';
 import { PhysicsSystem } from './systems/PhysicsSystem.js';
 import { UIManager } from './systems/UIManager.js';
+import { LODManager } from './systems/LODManager.js';
+import { CombatSystem } from './systems/CombatSystem.js';
+import { UpgradeSystem } from './systems/UpgradeSystem.js';
+import { InputManager } from './systems/InputManager.js';
 
 class Game {
     constructor() {
@@ -151,6 +155,60 @@ class Game {
         // Set callback for UI events
         this.uiManager.onPlayerDeath = () => {
             this.handlePlayerDeath();
+        };
+        
+        // Initialize upgrade system
+        const upgradeSystem = new UpgradeSystem(this.spacecraft, this.physicsSystem, this.uiManager);
+        
+        // Add some starter credits for testing
+        upgradeSystem.addCredits(2000);
+        
+        // Setup key bindings for upgrade system
+        const inputManager = InputManager.getInstance();
+        inputManager.registerKeyBinding('u', () => {
+            upgradeSystem.toggleUpgradeMenu();
+        });
+        
+        // Connect credit rewards
+        this.gameWorld.onEnemyDestroyed = (enemyType, position) => {
+            // Add credit rewards based on enemy type
+            let creditReward = 0;
+            switch(enemyType) {
+                case 'scout':
+                    creditReward = Math.floor(100 + Math.random() * 50);
+                    break;
+                case 'fighter':
+                    creditReward = Math.floor(200 + Math.random() * 100);
+                    break;
+                case 'cruiser':
+                    creditReward = Math.floor(500 + Math.random() * 200);
+                    break;
+                case 'asteroid':
+                    creditReward = Math.floor(25 + Math.random() * 25);
+                    break;
+                default:
+                    creditReward = Math.floor(50 + Math.random() * 50);
+            }
+            
+            // Add credits to player
+            upgradeSystem.addCredits(creditReward);
+            
+            // Create explosion effect at position
+            if (position) {
+                this.combatSystem.createExplosionEffect(position, enemyType === 'asteroid' ? 'small' : 'medium');
+            }
+        };
+        
+        // Connect UI callback for player death
+        this.uiManager.onRestartGame = () => {
+            // Reset player spacecraft
+            this.spacecraft.reset();
+            
+            // Reset game world (respawn enemies, etc)
+            this.gameWorld.reset();
+            
+            // Reset combat system
+            this.combatSystem.reset();
         };
     }
     

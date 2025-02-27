@@ -32,6 +32,8 @@ export class GameWorld {
             new THREE.Vector3(20000, 20000, 20000)
         );
         
+        this.onEnemyDestroyed = null; // Callback for when enemy is destroyed
+        
         this.init();
     }
     
@@ -54,6 +56,9 @@ export class GameWorld {
         
         // Create nebulae
         this.createNebulae();
+        
+        // Initialize the world
+        this.initialize();
     }
     
     createPlanets() {
@@ -496,5 +501,250 @@ export class GameWorld {
             }
         }
         return { name: 'unknown', sector: null };
+    }
+    
+    /**
+     * Initialize the game world
+     */
+    initialize() {
+        // Generate the star field
+        this.generateStarField();
+        
+        // Generate sectors
+        this.generateSectors();
+        
+        // Set current sector
+        this.setCurrentSector(0);
+    }
+    
+    /**
+     * Generate game sectors
+     */
+    generateSectors() {
+        // Example sector generation
+        const sectors = [
+            {
+                name: 'Alpha Quadrant',
+                position: new THREE.Vector3(0, 0, 0),
+                radius: 5000,
+                planetCount: 3,
+                asteroidFieldCount: 2,
+                nebulaCount: 1,
+                dangerLevel: 1
+            },
+            {
+                name: 'Beta Quadrant',
+                position: new THREE.Vector3(10000, 0, 0),
+                radius: 6000,
+                planetCount: 2,
+                asteroidFieldCount: 3,
+                nebulaCount: 1,
+                dangerLevel: 2
+            },
+            {
+                name: 'Gamma Quadrant',
+                position: new THREE.Vector3(0, 0, 10000),
+                radius: 5500,
+                planetCount: 1,
+                asteroidFieldCount: 4,
+                nebulaCount: 2,
+                dangerLevel: 3
+            },
+            {
+                name: 'Delta Quadrant',
+                position: new THREE.Vector3(10000, 0, 10000),
+                radius: 7000,
+                planetCount: 4,
+                asteroidFieldCount: 1,
+                nebulaCount: 3,
+                dangerLevel: 4
+            }
+        ];
+        
+        // Create each sector
+        sectors.forEach(sectorData => {
+            const sector = this.createSector(sectorData);
+            this.sectors.push(sector);
+        });
+    }
+    
+    /**
+     * Create a single sector
+     * @param {Object} sectorData - Data for the sector
+     */
+    createSector(sectorData) {
+        const sector = {
+            name: sectorData.name,
+            position: sectorData.position,
+            radius: sectorData.radius,
+            planets: [],
+            asteroidFields: [],
+            nebulae: [],
+            enemies: [],
+            dangerLevel: sectorData.dangerLevel || 1
+        };
+        
+        // Create planets
+        for (let i = 0; i < sectorData.planetCount; i++) {
+            const planet = this.createPlanet({
+                sectorPosition: sectorData.position,
+                sectorRadius: sectorData.radius
+            });
+            sector.planets.push(planet);
+        }
+        
+        // Create asteroid fields
+        for (let i = 0; i < sectorData.asteroidFieldCount; i++) {
+            const asteroidField = this.createAsteroidField({
+                sectorPosition: sectorData.position,
+                sectorRadius: sectorData.radius
+            });
+            sector.asteroidFields.push(asteroidField);
+            this.asteroidFields.push(asteroidField);
+        }
+        
+        // Create nebulae
+        for (let i = 0; i < sectorData.nebulaCount; i++) {
+            const nebula = this.createNebula({
+                sectorPosition: sectorData.position,
+                sectorRadius: sectorData.radius,
+                dangerLevel: sectorData.dangerLevel
+            });
+            sector.nebulae.push(nebula);
+            this.nebulae.push(nebula);
+        }
+        
+        // Create enemies based on danger level
+        const enemyCount = Math.floor(3 * sectorData.dangerLevel);
+        for (let i = 0; i < enemyCount; i++) {
+            const enemy = this.createEnemy({
+                sectorPosition: sectorData.position,
+                sectorRadius: sectorData.radius,
+                dangerLevel: sectorData.dangerLevel
+            });
+            sector.enemies.push(enemy);
+        }
+        
+        return sector;
+    }
+    
+    /**
+     * Create an asteroid field
+     * @param {Object} options - Options for the asteroid field
+     */
+    createAsteroidField(options) {
+        const { sectorPosition, sectorRadius } = options;
+        
+        // Calculate random position within sector
+        const position = this.getRandomPositionInSphere(sectorPosition, sectorRadius * 0.8);
+        
+        // Create asteroid field
+        const asteroidField = new AsteroidField({
+            position: position,
+            radius: 500 + Math.random() * 1000, // 500-1500 unit radius
+            density: 0.00002 + Math.random() * 0.00003, // Density factor
+            scene: this.scene,
+            physicsSystem: this.physicsSystem
+        });
+        
+        return asteroidField;
+    }
+    
+    /**
+     * Create a nebula
+     * @param {Object} options - Options for the nebula
+     */
+    createNebula(options) {
+        const { sectorPosition, sectorRadius, dangerLevel } = options;
+        
+        // Calculate random position within sector
+        const position = this.getRandomPositionInSphere(sectorPosition, sectorRadius * 0.7);
+        
+        // Generate random color based on danger level
+        let color;
+        switch (dangerLevel) {
+            case 1:
+                color = new THREE.Color(0x3366ff); // Blue - safe
+                break;
+            case 2:
+                color = new THREE.Color(0x66ccff); // Cyan - low danger
+                break;
+            case 3:
+                color = new THREE.Color(0xff6633); // Orange - medium danger
+                break;
+            case 4:
+                color = new THREE.Color(0xff3366); // Red - high danger
+                break;
+            default:
+                color = new THREE.Color(0x9966ff); // Purple - default
+        }
+        
+        // Create nebula
+        const nebula = new Nebula({
+            position: position,
+            radius: 800 + Math.random() * 1200, // 800-2000 unit radius
+            color: color,
+            scene: this.scene,
+            density: 0.0001 + Math.random() * 0.0002,
+            particleSize: 15 + Math.random() * 15
+        });
+        
+        return nebula;
+    }
+    
+    /**
+     * Set the current active sector
+     * @param {number} index - Index of the sector to set as current
+     */
+    setCurrentSector(index) {
+        if (index < 0 || index >= this.sectors.length) {
+            console.error('Invalid sector index');
+            return;
+        }
+        
+        // Set current sector
+        this.currentSector = this.sectors[index];
+        
+        // Optional: Trigger any events or UI updates
+        console.log(`Entered sector: ${this.currentSector.name}`);
+    }
+    
+    /**
+     * Get a random position within a sphere
+     * @param {THREE.Vector3} center - Center of the sphere
+     * @param {number} radius - Radius of the sphere
+     * @returns {THREE.Vector3} Random position
+     */
+    getRandomPositionInSphere(center, radius) {
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        const r = radius * Math.cbrt(Math.random()); // Cube root for uniform distribution
+        
+        const x = center.x + r * Math.sin(phi) * Math.cos(theta);
+        const y = center.y + r * Math.sin(phi) * Math.sin(theta);
+        const z = center.z + r * Math.cos(phi);
+        
+        return new THREE.Vector3(x, y, z);
+    }
+    
+    /**
+     * Reset the game world
+     */
+    reset() {
+        // Remove all asteroids, enemies, etc.
+        this.asteroidFields.forEach(field => {
+            field.dispose();
+        });
+        
+        this.nebulae.forEach(nebula => {
+            nebula.dispose();
+        });
+        
+        // Clear arrays
+        this.asteroidFields = [];
+        this.nebulae = [];
+        
+        // Regenerate
+        this.initialize();
     }
 } 
