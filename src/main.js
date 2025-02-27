@@ -38,6 +38,8 @@ class Game {
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+        this.renderer.shadowMap.enabled = true;
         document.body.appendChild(this.renderer.domElement);
         
         // Add post-processing for improved visuals
@@ -61,12 +63,76 @@ class Game {
     setupPostProcessing() {
         // Will be implemented in a future update with more advanced visual effects
         // For now, enable basic features in the renderer
-        this.renderer.outputEncoding = THREE.sRGBEncoding;
+        this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.renderer.shadowMap.enabled = true;
     }
     
     addDistantSpaceBackdrop() {
-        // Create a large skybox with stars
+        // Create a simple in-memory galaxy texture
+        const galaxyCanvas = document.createElement('canvas');
+        galaxyCanvas.width = 1024;
+        galaxyCanvas.height = 1024;
+        const ctx = galaxyCanvas.getContext('2d');
+        
+        // Draw black background
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, galaxyCanvas.width, galaxyCanvas.height);
+        
+        // Draw stars
+        for (let i = 0; i < 2000; i++) {
+            const x = Math.random() * galaxyCanvas.width;
+            const y = Math.random() * galaxyCanvas.height;
+            const radius = Math.random() * 1.5;
+            const brightness = Math.random();
+            
+            ctx.fillStyle = `rgba(255, 255, 255, ${brightness})`;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        // Draw galaxy spiral
+        const centerX = galaxyCanvas.width / 2;
+        const centerY = galaxyCanvas.height / 2;
+        
+        // Draw galaxy center glow
+        const grd = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 300);
+        grd.addColorStop(0, 'rgba(100, 120, 255, 0.8)');
+        grd.addColorStop(0.5, 'rgba(50, 50, 150, 0.4)');
+        grd.addColorStop(1, 'rgba(20, 20, 80, 0)');
+        ctx.fillStyle = grd;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 300, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Create spiral arms
+        for (let arm = 0; arm < 3; arm++) {
+            const armOffset = arm * (Math.PI * 2 / 3);
+            for (let i = 0; i < 500; i++) {
+                const distance = 40 + i * 1.5;
+                const angle = i * 0.03 + armOffset;
+                
+                const x = centerX + Math.cos(angle) * distance;
+                const y = centerY + Math.sin(angle) * distance;
+                
+                if (x >= 0 && x < galaxyCanvas.width && y >= 0 && y < galaxyCanvas.height) {
+                    const brightness = Math.random() * 0.5 + 0.3;
+                    const size = Math.random() * 4 + 1;
+                    
+                    // Random color tint for variety
+                    const r = 180 + Math.random() * 75;
+                    const g = 180 + Math.random() * 75;
+                    const b = 200 + Math.random() * 55;
+                    
+                    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${brightness})`;
+                    ctx.beginPath();
+                    ctx.arc(x, y, size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+        
+        // Create skybox
         const skyboxGeometry = new THREE.SphereGeometry(10000, 32, 32);
         const skyboxMaterial = new THREE.MeshBasicMaterial({
             color: 0x000000,
@@ -76,19 +142,26 @@ class Game {
         const skybox = new THREE.Mesh(skyboxGeometry, skyboxMaterial);
         this.scene.add(skybox);
         
+        // Create texture from canvas
+        const galaxyTexture = new THREE.CanvasTexture(galaxyCanvas);
+        
         // Add distant galaxy plane
         const galaxyGeometry = new THREE.PlaneGeometry(20000, 20000);
-        const galaxyMaterial = new THREE.MeshBasicMaterial({
-            map: new THREE.TextureLoader().load('assets/textures/galaxy.jpg'),
+        
+        this.galaxyMaterial = new THREE.MeshBasicMaterial({
+            map: galaxyTexture,
             transparent: true,
-            opacity: 0.5,
+            opacity: 0.8,
             depthWrite: false,
             blending: THREE.AdditiveBlending
         });
-        const galaxy = new THREE.Mesh(galaxyGeometry, galaxyMaterial);
+        
+        const galaxy = new THREE.Mesh(galaxyGeometry, this.galaxyMaterial);
         galaxy.position.z = -9000;
         galaxy.rotation.z = Math.random() * Math.PI;
         this.scene.add(galaxy);
+        
+        console.log("Space backdrop created with in-memory galaxy texture");
     }
     
     setupLoadingManager() {

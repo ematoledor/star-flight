@@ -31,6 +31,8 @@ export class AlienShip extends THREE.Object3D {
         this.isAggressive = false;
         this.detectionRadius = 300;
         this.aggroRadius = 200;
+        this.patrolRadius = 200; // Default patrol radius
+        this.maxSpeed = this.speed; // Default max speed
         this.cooldownTimer = 0;
         
         // Add to scene
@@ -518,5 +520,21 @@ export class AlienShip extends THREE.Object3D {
             // Collided with player
             this.takeDamage(50);
         }
+    }
+    
+    // Add the missing setPatrolRadius method
+    setPatrolRadius(radius) {
+        this.patrolRadius = radius;
+        console.log(`Set patrol radius to ${radius} for ${this.config.type} alien ship`);
+    }
+    
+    // Add the missing setMaxSpeed method
+    setMaxSpeed(speed) {
+        this.maxSpeed = speed;
+        // Adjust current velocity if it's higher than the new max speed
+        if (this.velocity.length() > this.maxSpeed) {
+            this.velocity.normalize().multiplyScalar(this.maxSpeed);
+        }
+        console.log(`Set max speed to ${speed} for ${this.config.type} alien ship`);
     }
 } 
