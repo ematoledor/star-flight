@@ -37,6 +37,12 @@ export class GameWorld {
         this.anomalies = []; // Track space anomalies
         this.currentSector = null;
         
+        // Configuration
+        this.config = {
+            numSectors: 4,  // Limit the number of sectors for better performance
+            sectorSize: 2000
+        };
+        
         // Callbacks
         this.onEnemyDestroyed = null;
         this.onSectorDiscovered = null;
@@ -46,7 +52,7 @@ export class GameWorld {
         // Initialize with a delay to prevent blocking
         setTimeout(() => this.initialize(), 0);
         
-        console.log("GameWorld initialized");
+        console.log("GameWorld constructor completed");
     }
     
     async initialize() {
@@ -56,18 +62,33 @@ export class GameWorld {
             // Generate star field first for immediate visual feedback
             await this.generateStarField();
             
-            // Create solar system in chunks to prevent blocking
-            const tasks = [
-                this.createSolarSystem(),
-                this.createAsteroids(),
-                this.createNebulae(),
-                this.createSectors()
+            // Create solar system
+            await this.createSolarSystem();
+            
+            // Create the main mothership carrier near Earth
+            const earth = this.planets.find(planet => planet.name === "Earth");
+            const mothershipPosition = earth ? 
+                new THREE.Vector3(earth.position.x + 300, earth.position.y + 100, earth.position.z + 300) : 
+                new THREE.Vector3(0, 200, 0);
+            
+            this.createMothership(mothershipPosition);
+            
+            // Create sectors with predefined data instead of dynamic generation
+            this.sectors = [
+                { name: "Solar System", position: new THREE.Vector3(0, 0, 0), difficulty: 1, radius: 3000, isPopulated: true },
+                { name: "Alpha Centauri", position: new THREE.Vector3(5000, 0, 0), difficulty: 2, radius: 1500, isPopulated: false },
+                { name: "Sirius System", position: new THREE.Vector3(0, 0, 5000), difficulty: 3, radius: 1800, isPopulated: false },
+                { name: "Orion Nebula", position: new THREE.Vector3(5000, 0, 5000), difficulty: 4, radius: 2000, isPopulated: false }
             ];
             
-            // Execute tasks in parallel
-            await Promise.all(tasks.map(task => 
-                new Promise(resolve => setTimeout(() => resolve(task()), 0))
-            ));
+            // Set initial sector
+            this.setActiveSector(this.sectors[0]);
+            
+            // Create some wormholes and black holes
+            this.createSpaceAnomalies();
+            
+            // Populate initial sector (origin)
+            this.populateSector(this.sectors[0]);
             
             console.log("Game world initialization complete");
             return true;
@@ -77,29 +98,10 @@ export class GameWorld {
         }
     }
     
-    async createSectors() {
-        const sectorPromises = [];
-        const maxConcurrent = 5; // Limit concurrent sector creation
-        
-        for (let i = 0; i < this.config.numSectors; i++) {
-            if (sectorPromises.length >= maxConcurrent) {
-                await Promise.race(sectorPromises);
-                sectorPromises.splice(0, 1);
-            }
-            
-            sectorPromises.push(
-                new Promise(resolve => {
-                    setTimeout(() => {
-                        const sector = this.createSector(i);
-                        this.sectors.push(sector);
-                        console.log(`Created sector ${i + 1}/${this.config.numSectors}`);
-                        resolve();
-                    }, 0);
-                })
-            );
-        }
-        
-        await Promise.all(sectorPromises);
+    // Simplified sector creation - no async to avoid loading issues
+    createSector(index) {
+        // Use predefined sector data instead of dynamic generation
+        return this.sectors[index];
     }
     
     setActiveSector(sector) {
@@ -121,82 +123,29 @@ export class GameWorld {
             
             console.log(`Populating sector: ${sector.name}`);
             
-            // Add planets to the sector
-            const numPlanets = 1 + Math.floor(Math.random() * 2); // 1-2 planets per sector
-            
-            for (let i = 0; i < numPlanets; i++) {
-                // Create with lower initial detail
-                try {
-                    const planetPosition = this.getRandomPositionInSector(sector);
-                    setTimeout(() => {
-                        try {
-                            const planet = this.createPlanet(planetPosition);
-                            if (planet) {
-                                this.planets.push(planet);
-                            }
-                        } catch (error) {
-                            console.error("Error creating planet:", error);
-                        }
-                    }, i * 200); // Stagger planet creation
-                } catch (error) {
-                    console.error("Error preparing planet creation:", error);
-                }
+            // Add a single planet to the sector for simplicity
+            const planetPosition = this.getRandomPositionInSector(sector);
+            const planet = this.createPlanet(planetPosition);
+            if (planet) {
+                this.planets.push(planet);
             }
             
-            // Add asteroid fields
-            const numAsteroidFields = Math.floor(Math.random() * 3); // 0-2 asteroid fields
-            
-            for (let i = 0; i < numAsteroidFields; i++) {
-                setTimeout(() => {
-                    try {
-                        const asteroidField = this.createAsteroidField(sector);
-                        if (asteroidField) {
-                            this.asteroidFields.push(asteroidField);
-                        }
-                    } catch (error) {
-                        console.error("Error creating asteroid field:", error);
-                    }
-                }, numPlanets * 200 + i * 300); // Start after planets are created
+            // Add a single asteroid field
+            const asteroidField = this.createAsteroidField(sector);
+            if (asteroidField) {
+                this.asteroidFields.push(asteroidField);
             }
             
-            // Add some alien ships based on sector difficulty
-            const numAliens = Math.min(3 + Math.floor(Math.random() * (sector.difficulty || 1) * 2), 10);
-            
-            // Verify the AlienShip class is loaded and method exists
-            if (typeof this.createAlienShip === 'function') {
-                for (let i = 0; i < numAliens; i++) {
-                    setTimeout(() => {
-                        try {
-                            // Create alien ship with try-catch to handle errors
-                            const alien = this.createAlienShip(sector);
-                            if (alien) {
-                                this.aliens.push(alien);
-                            }
-                        } catch (error) {
-                            console.error("Error creating alien ship:", error);
-                        }
-                    }, numPlanets * 200 + numAsteroidFields * 300 + i * 100);
-                }
-            } else {
-                console.warn("createAlienShip method not available - skipping alien creation");
-            }
-            
-            // Add nebula
-            if (Math.random() > 0.5) {
-                setTimeout(() => {
-                    try {
-                        const nebula = this.createNebula(sector);
-                        if (nebula) {
-                            this.nebulae.push(nebula);
-                        }
-                    } catch (error) {
-                        console.error("Error creating nebula:", error);
-                    }
-                }, numPlanets * 200 + numAsteroidFields * 300 + numAliens * 100);
+            // Add just one alien ship for performance
+            const alien = this.createAlienShip(sector);
+            if (alien) {
+                this.aliens.push(alien);
             }
             
             // Mark sector as populated
             sector.isPopulated = true;
+            
+            console.log(`Sector ${sector.name} populated successfully`);
         } catch (error) {
             console.error("Error populating sector:", error);
         }

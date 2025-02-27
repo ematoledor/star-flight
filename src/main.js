@@ -79,15 +79,33 @@ class Game {
             
             // Create loading manager with better progress tracking
             this.loadingManager = new THREE.LoadingManager();
+            
+            // Track items to load
+            this.totalItemsToLoad = 0;
+            this.itemsLoaded = 0;
+            
+            this.loadingManager.onStart = (url, itemsLoaded, itemsTotal) => {
+                console.log(`Started loading: ${url}`);
+                this.totalItemsToLoad = Math.max(this.totalItemsToLoad, itemsTotal);
+            };
+            
             this.loadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
-                const progress = (itemsLoaded / itemsTotal) * 100;
+                this.itemsLoaded = itemsLoaded;
+                this.totalItemsToLoad = Math.max(this.totalItemsToLoad, itemsTotal);
+                
+                // Calculate progress percentage
+                const progress = (this.itemsLoaded / this.totalItemsToLoad) * 95; // Only go to 95%
                 this.updateLoadingProgress(progress);
-                console.log(`Loading progress: ${progress.toFixed(2)}%`);
+                console.log(`Loading progress: ${progress.toFixed(2)}% - ${url}`);
+            };
+            
+            this.loadingManager.onError = (url) => {
+                console.error(`Error loading: ${url}`);
+                // Continue loading despite errors
             };
             
             this.loadingManager.onLoad = () => {
-                console.log("All assets loaded");
-                this.updateLoadingProgress(100);
+                console.log("All assets loaded by LoadingManager");
                 
                 // Initialize remaining systems
                 Promise.all([
@@ -96,6 +114,14 @@ class Game {
                     this.initInputManager(),
                     this.initUI()
                 ]).then(() => {
+                    console.log("All game systems initialized");
+                    
+                    // Final loading step - create player spacecraft
+                    this.createPlayerSpacecraft();
+                    
+                    // Update to 100% and remove loading screen
+                    this.updateLoadingProgress(100);
+                    
                     // Remove loading screens after initialization
                     setTimeout(() => {
                         this.forceRemoveAllLoadingScreens();
@@ -110,6 +136,13 @@ class Game {
                 }).catch(error => {
                     console.error("Error during initialization:", error);
                     this.showErrorMessage("Failed to initialize game systems: " + error.message);
+                    
+                    // Force remove loading screen even on error
+                    this.updateLoadingProgress(100);
+                    setTimeout(() => {
+                        this.forceRemoveAllLoadingScreens();
+                        this.initialized = true;
+                    }, 500);
                 });
             };
             
@@ -125,6 +158,16 @@ class Game {
             setTimeout(() => {
                 this.showNotification("Use WASD to move, SPACE to boost, and SHIFT to brake. Press S to scan your surroundings.", 'info', 8000);
             }, 12000);
+            
+            // Failsafe: Force completion after 20 seconds if loading gets stuck
+            setTimeout(() => {
+                if (!this.initialized) {
+                    console.warn("Loading timeout reached. Forcing completion...");
+                    this.updateLoadingProgress(100);
+                    this.forceRemoveAllLoadingScreens();
+                    this.initialized = true;
+                }
+            }, 20000);
             
             return true;
         } catch (error) {
@@ -610,49 +653,64 @@ class Game {
         }
     }
     
-    // Add a method to forcibly remove all loading screens
+    // Improved loading screen removal
     forceRemoveAllLoadingScreens() {
         console.log("Forcing removal of all loading screens");
         
-        // Try to find and remove loading screen elements
-        const loadingElements = ['loading', 'loading-screen'];
-        
-        loadingElements.forEach(id => {
-            const element = document.getElementById(id);
-            if (element) {
-                console.log(`Removing loading element with id: ${id}`);
-                element.style.opacity = '0';
-                
-                // Remove from DOM after fade out
-                setTimeout(() => {
-                    if (element.parentNode) {
-                        element.parentNode.removeChild(element);
-                        console.log(`Loading element ${id} removed from DOM`);
-                    }
-                }, 500);
+        try {
+            // Find all loading elements by ID
+            const loadingIds = ['loading', 'loading-screen'];
+            
+            loadingIds.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    console.log(`Removing loading element: ${id}`);
+                    
+                    // Fade out
+                    element.style.transition = 'opacity 0.5s ease-in-out';
+                    element.style.opacity = '0';
+                    
+                    // Remove from DOM after transition
+                    setTimeout(() => {
+                        if (element.parentNode) {
+                            element.parentNode.removeChild(element);
+                            console.log(`Removed ${id} from DOM`);
+                        }
+                    }, 500);
+                } else {
+                    console.log(`Loading element not found: ${id}`);
+                }
+            });
+            
+            // Also search for any elements containing loading text
+            const allElements = document.querySelectorAll('*');
+            allElements.forEach(element => {
+                if (element.textContent && 
+                    (element.textContent.includes('Loading game assets') || 
+                     element.textContent.includes('Welcome to a new universe'))) {
+                    
+                    console.log(`Found loading text element: ${element.tagName}`);
+                    
+                    // Fade out
+                    element.style.transition = 'opacity 0.5s ease-in-out';
+                    element.style.opacity = '0';
+                    
+                    // Remove from DOM after transition
+                    setTimeout(() => {
+                        if (element.parentNode) {
+                            element.parentNode.removeChild(element);
+                            console.log(`Removed text element from DOM`);
+                        }
+                    }, 500);
+                }
+            });
+            
+            // Force a render frame to ensure the scene is visible
+            if (this.renderer && this.scene && this.camera) {
+                this.renderer.render(this.scene, this.camera);
             }
-        });
-        
-        // Also look for any elements containing loading text
-        document.querySelectorAll('*').forEach(el => {
-            if (el.textContent && el.textContent.includes('Loading game assets')) {
-                console.log('Found additional loading element by text content');
-                el.style.opacity = '0';
-                
-                // Remove from DOM after fade out
-                setTimeout(() => {
-                    if (el.parentNode) {
-                        el.parentNode.removeChild(el);
-                        console.log('Additional loading element removed from DOM');
-                    }
-                }, 500);
-            }
-        });
-        
-        // Force render a frame to ensure scene is visible
-        if (this.renderer && this.scene && this.camera) {
-            console.log("Forcing a render frame");
-            this.renderer.render(this.scene, this.camera);
+        } catch (error) {
+            console.error("Error removing loading screens:", error);
         }
     }
     
@@ -1432,28 +1490,44 @@ class Game {
         try {
             console.log("Creating player spacecraft...");
             
-            // Get a good starting position near the mothership
-            let startPosition = new THREE.Vector3(0, 0, 0);
-            if (this.mothership) {
-                // Position slightly in front of the mothership
-                startPosition = this.mothership.position.clone();
-                startPosition.z += 200; // Position in front of the mothership
-                console.log(`Starting position near mothership: ${startPosition.x}, ${startPosition.y}, ${startPosition.z}`);
+            // Check if we already have a spacecraft
+            if (this.spacecraft) {
+                console.log("Spacecraft already exists, skipping creation");
+                return;
+            }
+            
+            // Get mothership if available
+            let startPosition;
+            let mothership = null;
+            
+            if (this.gameWorld && this.gameWorld.motherships && this.gameWorld.motherships.length > 0) {
+                mothership = this.gameWorld.motherships[0];
+                console.log("Found mothership for spacecraft starting position");
+            }
+            
+            // Set starting position based on mothership or Earth
+            if (mothership) {
+                // Start in front of the mothership
+                startPosition = new THREE.Vector3().copy(mothership.position);
+                startPosition.y -= 100; // Below the mothership
+                console.log(`Starting at mothership: ${startPosition.x}, ${startPosition.y}, ${startPosition.z}`);
             } else {
-                console.warn("No mothership found, using default starting position");
+                // Fallback to starting above Earth
+                const earth = this.gameWorld ? 
+                    this.gameWorld.planets.find(planet => planet.name === "Earth") : null;
                 
-                // If no mothership, try to find Earth and position near it
-                if (this.gameWorld && this.gameWorld.planets) {
-                    const earth = this.gameWorld.planets.find(planet => planet.name === "Earth");
-                    if (earth) {
-                        startPosition = earth.position.clone();
-                        startPosition.y += 300; // Position above Earth
-                        console.log(`Starting position near Earth: ${startPosition.x}, ${startPosition.y}, ${startPosition.z}`);
-                    }
+                if (earth) {
+                    startPosition = new THREE.Vector3().copy(earth.position);
+                    startPosition.y += 200; // Above Earth
+                    console.log(`Starting above Earth: ${startPosition.x}, ${startPosition.y}, ${startPosition.z}`);
+                } else {
+                    // Ultimate fallback
+                    startPosition = new THREE.Vector3(0, 200, 0);
+                    console.log("Using default starting position");
                 }
             }
             
-            // Create spacecraft
+            // Create the spacecraft
             this.spacecraft = new Spacecraft({
                 scene: this.scene,
                 camera: this.camera,
@@ -1461,32 +1535,34 @@ class Game {
                 position: startPosition
             });
             
-            // Set up camera to follow spacecraft
+            // Add to physics system
+            if (this.physicsSystem) {
+                this.physicsSystem.addObject(this.spacecraft);
+                
+                // Set collision group if available
+                if (this.physicsSystem.collisionGroups) {
+                    this.spacecraft.collisionGroup = this.physicsSystem.collisionGroups.spacecraft;
+                }
+            }
+            
+            // Position camera to follow spacecraft
             if (this.camera) {
-                this.camera.position.copy(startPosition);
-                this.camera.position.z += 50; // Position camera behind spacecraft
-                this.camera.position.y += 20; // Position camera slightly above spacecraft
+                // Position camera behind and above spacecraft
+                this.camera.position.set(
+                    startPosition.x, 
+                    startPosition.y + 20, 
+                    startPosition.z + 50
+                );
                 this.camera.lookAt(startPosition);
                 console.log(`Camera positioned at: ${this.camera.position.x}, ${this.camera.position.y}, ${this.camera.position.z}`);
             }
             
-            // Update input manager with spacecraft reference
-            if (this.inputManager) {
-                this.inputManager.setSpacecraft(this.spacecraft);
-                console.log("Input manager updated with spacecraft reference");
-            }
-            
-            // Update UI manager with spacecraft reference
-            if (this.uiManager) {
-                this.uiManager.setSpacecraft(this.spacecraft);
-                console.log("UI manager updated with spacecraft reference");
-            }
-            
-            console.log("Player spacecraft created");
-            return true;
+            console.log("Player spacecraft created successfully");
+            return this.spacecraft;
         } catch (error) {
-            console.error("Failed to create player spacecraft:", error);
-            return false;
+            console.error("Error creating player spacecraft:", error);
+            this.showErrorMessage("Failed to create spacecraft: " + error.message);
+            return null;
         }
     }
 
