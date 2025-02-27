@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Star Flight Simulator Demo</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Courier New', monospace;
+        }
+        canvas {
+            display: block;
+        }
+        #ui-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            color: white;
+        }
+        #stats {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px;
+            height: 20px;
+            font-size: 20px;
+            text-align: center;
+            line-height: 20px;
+        }
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px 20px;
+            border-radius: 5px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui-container">
+        <div id="stats">
+            <div>SPEED: <span id="speed">150</span> km/s</div>
+            <div>HEALTH: <span id="health">100</span>%</div>
+            <div>AMMO: <span id="ammo">100</span></div>
+        </div>
+        <div id="crosshair">+</div>
+        <div id="instructions">
+            <p>Click to activate controls | WASD to move | Mouse to aim | Left-click to shoot</p>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js';
+        import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/controls/OrbitControls.js';
+
+        // Main Game Class
+        class Game {
+            constructor() {
+                this.scene = new THREE.Scene();
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
+                this.camera.position.z = 40;
+                
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.setPixelRatio(window.devicePixelRatio);
+                document.body.appendChild(this.renderer.domElement);
+                
+                // Controls (will be disabled when game starts)
+                this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+                this.controls.enableDamping = true;
+                
+                // Add ambient light
+                const ambientLight = new THREE.AmbientLight(0x404040);
+                this.scene.add(ambientLight);
+                
+                // Add directional light (sun)
+                const sunLight = new THREE.DirectionalLight(0xffffff, 1);
+                sunLight.position.set(1, 1, 1);
+                this.scene.add(sunLight);
+                
+                // Create starfield
+                this.createStars();
+                
+                // Create spaceship
+                this.createSpacecraft();
+                
+                // Create planet
+                this.createPlanet();
+                
+                // Create alien ship
+                this.createAlienShip();
+                
+                // Add event listeners
+                window.addEventListener('resize', this.onWindowResize.bind(this));
+                document.addEventListener('click', this.onClick.bind(this));
+                document.addEventListener('keydown', this.onKeyDown.bind(this));
+                
+                // Start animation loop
+                this.animate();
+            }
+            
+            createStars() {
+                const starCount = 5000;
+                const positions = new Float32Array(starCount * 3);
+                const sizes = new Float32Array(starCount);
+                
+                for (let i = 0; i < starCount; i++) {
+                    const i3 = i * 3;
+                    const radius = 5000;
+                    const phi = Math.acos(-1 + (2 * Math.random()));
+                    const theta = Math.random() * Math.PI * 2;
+                    
+                    positions[i3] = radius * Math.sin(phi) * Math.cos(theta);
+                    positions[i3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+                    positions[i3 + 2] = radius * Math.cos(phi);
+                    
+                    sizes[i] = Math.random() * 2;
+                }
+                
+                const geometry = new THREE.BufferGeometry();
+                geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+                
+                const starMaterial = new THREE.PointsMaterial({
+                    color: 0xffffff,
+                    size: 2,
+                    transparent: true,
+                    opacity: 1,
+                    blending: THREE.AdditiveBlending
+                });
+                
+                this.stars = new THREE.Points(geometry, starMaterial);
+                this.scene.add(this.stars);
+            }
+            
+            createSpacecraft() {
+                // Player spacecraft
+                this.spacecraft = new THREE.Group();
+                
+                // Main body
+                const body = new THREE.Mesh(
+                    new THREE.BoxGeometry(4, 2, 6),
+                    new THREE.MeshLambertMaterial({ color: 0x4477aa })
+                );
+                this.spacecraft.add(body);
+                
+                // Cockpit
+                const cockpit = new THREE.Mesh(
+                    new THREE.BoxGeometry(2, 1, 2),
+                    new THREE.MeshLambertMaterial({ color: 0x88ccff })
+                );
+                cockpit.position.z = 2;
+                cockpit.position.y = 1;
+                this.spacecraft.add(cockpit);
+                
+                // Wings
+                const wingGeometry = new THREE.BoxGeometry(8, 0.5, 3);
+                const wingMaterial = new THREE.MeshLambertMaterial({ color: 0x2255aa });
+                
+                const leftWing = new THREE.Mesh(wingGeometry, wingMaterial);
+                leftWing.position.set(5, 0, 0);
+                this.spacecraft.add(leftWing);
+                
+                const rightWing = new THREE.Mesh(wingGeometry, wingMaterial);
+                rightWing.position.set(-5, 0, 0);
+                this.spacecraft.add(rightWing);
+                
+                // Engine glow
+                const engineGlow = new THREE.Mesh(
+                    new THREE.BoxGeometry(2, 1, 1),
+                    new THREE.MeshBasicMaterial({ 
+                        color: 0xff6600, 
+                        transparent: true,
+                        opacity: 0.8,
+                        blending: THREE.AdditiveBlending
+                    })
+                );
+                engineGlow.position.z = -3.5;
+                this.spacecraft.add(engineGlow);
+                this.engineGlow = engineGlow;
+                
+                // Add weapon
+                const weapon = new THREE.Mesh(
+                    new THREE.BoxGeometry(1, 1, 2),
+                    new THREE.MeshLambertMaterial({ color: 0xaaaaaa })
+                );
+                weapon.position.y = -1;
+                weapon.position.z = 2;
+                this.spacecraft.add(weapon);
+                
+                this.spacecraft.position.set(0, 0, 10);
+                this.scene.add(this.spacecraft);
+                this.spacecraftVelocity = new THREE.Vector3(0, 0, 0);
+                
+                // Create follow camera
+                this.cameraTarget = new THREE.Object3D();
+                this.cameraTarget.position.set(0, 5, -15);
+                this.spacecraft.add(this.cameraTarget);
+            }
+            
+            createPlanet() {
+                // Create a simple voxel planet
+                this.planet = new THREE.Group();
+                
+                // Make a voxel sphere
+                const planetSize = 50;
+                const resolution = 16;
+                const center = new THREE.Vector3(0, 0, 0);
+                
+                for (let x = -resolution/2; x < resolution/2; x++) {
+                    for (let y = -resolution/2; y < resolution/2; y++) {
+                        for (let z = -resolution/2; z < resolution/2; z++) {
+                            // Calculate distance from center
+                            const pos = new THREE.Vector3(x, y, z);
+                            const distance = pos.distanceTo(center);
+                            
+                            // If inside the sphere
+                            if (distance <= resolution/2) {
+                                // Only create blocks on the surface
+                                if (distance > (resolution/2) - 1.5) {
+                                    // Calculate block size and position
+                                    const blockSize = planetSize / resolution;
+                                    const position = new THREE.Vector3(
+                                        x * blockSize,
+                                        y * blockSize,
+                                        z * blockSize
+                                    );
+                                    
+                                    // Determine block color based on position
+                                    let color;
+                                    const height = y / (resolution/2); // Normalize height (-1 to 1)
+                                    
+                                    if (height > 0.7) {
+                                        // Snow caps
+                                        color = 0xffffff;
+                                    } else if (height > 0.2) {
+                                        // Mountains
+                                        color = 0x996633;
+                                    } else if (height > -0.2) {
+                                        // Land
+                                        color = 0x669933;
+                                    } else {
+                                        // Water
+                                        color = 0x3399cc;
+                                    }
+                                    
+                                    const block = new THREE.Mesh(
+                                        new THREE.BoxGeometry(blockSize, blockSize, blockSize),
+                                        new THREE.MeshLambertMaterial({ color: color })
+                                    );
+                                    
+                                    block.position.copy(position);
+                                    this.planet.add(block);
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Add atmosphere
+                const atmosphere = new THREE.Mesh(
+                    new THREE.SphereGeometry(planetSize * 0.6, 32, 32),
+                    new THREE.MeshBasicMaterial({
+                        color: 0x88aaff,
+                        transparent: true,
+                        opacity: 0.2,
+                        side: THREE.BackSide
+                    })
+                );
+                this.planet.add(atmosphere);
+                
+                this.planet.position.set(-200, -100, -300);
+                this.scene.add(this.planet);
+            }
+            
+            createAlienShip() {
+                // Create an alien ship
+                this.alienShip = new THREE.Group();
+                
+                // Main body
+                const body = new THREE.Mesh(
+                    new THREE.BoxGeometry(6, 2, 8),
+                    new THREE.MeshLambertMaterial({ color: 0xcc4444 })
+                );
+                this.alienShip.add(body);
+                
+                // Cockpit
+                const cockpit = new THREE.Mesh(
+                    new THREE.BoxGeometry(3, 1.5, 2),
+                    new THREE.MeshLambertMaterial({ color: 0x444444 })
+                );
+                cockpit.position.z = 2;
+                this.alienShip.add(cockpit);
+                
+                // Wings
+                const wingGeometry = new THREE.BoxGeometry(10, 1, 4);
+                const wingMaterial = new THREE.MeshLambertMaterial({ color: 0xaa3333 });
+                
+                const leftWing = new THREE.Mesh(wingGeometry, wingMaterial);
+                leftWing.position.set(6, 0, -1);
+                leftWing.rotation.y = Math.PI * 0.1;
+                this.alienShip.add(leftWing);
+                
+                const rightWing = new THREE.Mesh(wingGeometry, wingMaterial);
+                rightWing.position.set(-6, 0, -1);
+                rightWing.rotation.y = -Math.PI * 0.1;
+                this.alienShip.add(rightWing);
+                
+                // Engine glow
+                const engineGlow = new THREE.Mesh(
+                    new THREE.BoxGeometry(3, 1, 1),
+                    new THREE.MeshBasicMaterial({ 
+                        color: 0xff2200, 
+                        transparent: true,
+                        opacity: 0.8,
+                        blending: THREE.AdditiveBlending
+                    })
+                );
+                engineGlow.position.z = -4.5;
+                this.alienShip.add(engineGlow);
+                
+                // Add weapon
+                const weapon = new THREE.Mesh(
+                    new THREE.BoxGeometry(1, 1, 3),
+                    new THREE.MeshLambertMaterial({ color: 0x222222 })
+                );
+                weapon.position.y = -1.5;
+                weapon.position.z = 2;
+                this.alienShip.add(weapon);
+                
+                this.alienShip.position.set(50, 20, -60);
+                this.scene.add(this.alienShip);
+                
+                // Add movement animation
+                this.alienShipDirection = new THREE.Vector3(
+                    Math.random() - 0.5,
+                    Math.random() - 0.5,
+                    Math.random() - 0.5
+                ).normalize();
+                this.alienShipSpeed = 0.2;
+                this.alienShipHealth = 100;
+            }
+            
+            onWindowResize() {
+                this.camera.aspect = window.innerWidth / window.innerHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+            
+            onClick() {
+                // Request pointer lock for immersive controls
+                document.body.requestPointerLock();
+                
+                // Fire weapon
+                this.fireWeapon();
+            }
+            
+            onKeyDown(event) {
+                // Simple keyboard control demo
+                const speed = 1;
+                
+                switch(event.key.toLowerCase()) {
+                    case 'w':
+                        this.spacecraft.position.z -= speed;
+                        break;
+                    case 's':
+                        this.spacecraft.position.z += speed;
+                        break;
+                    case 'a':
+                        this.spacecraft.position.x -= speed;
+                        break;
+                    case 'd':
+                        this.spacecraft.position.x += speed;
+                        break;
+                }
+            }
+            
+            fireWeapon() {
+                // Create laser beam
+                const laserBeam = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.3, 0.3, 10),
+                    new THREE.MeshBasicMaterial({ 
+                        color: 0x00ff00, 
+                        transparent: true,
+                        opacity: 0.8,
+                        blending: THREE.AdditiveBlending
+                    })
+                );
+                
+                // Position in front of spacecraft
+                laserBeam.position.copy(this.spacecraft.position);
+                laserBeam.position.z = this.spacecraft.position.z + 10;
+                
+                // Match spacecraft rotation
+                laserBeam.rotation.copy(this.spacecraft.rotation);
+                
+                // Add to scene
+                this.scene.add(laserBeam);
+                
+                // Store velocity and creation time
+                laserBeam.userData = {
+                    velocity: new THREE.Vector3(0, 0, -5),
+                    creationTime: Date.now()
+                };
+                
+                // Store reference for update
+                if (!this.projectiles) this.projectiles = [];
+                this.projectiles.push(laserBeam);
+                
+                // Create muzzle flash
+                this.createMuzzleFlash();
+            }
+            
+            createMuzzleFlash() {
+                const flashPosition = new THREE.Vector3(
+                    this.spacecraft.position.x,
+                    this.spacecraft.position.y - 1,
+                    this.spacecraft.position.z + 3
+                );
+                
+                const flash = new THREE.Mesh(
+                    new THREE.SphereGeometry(1, 8, 8),
+                    new THREE.MeshBasicMaterial({
+                        color: 0x00ff00,
+                        transparent: true,
+                        opacity: 0.8,
+                        blending: THREE.AdditiveBlending
+                    })
+                );
+                
+                flash.position.copy(flashPosition);
+                this.scene.add(flash);
+                
+                // Animate flash
+                const startTime = Date.now();
+                const duration = 100;
+                
+                const animateFlash = () => {
+                    const elapsed = Date.now() - startTime;
+                    const progress = elapsed / duration;
+                    
+                    if (progress >= 1) {
+                        this.scene.remove(flash);
+                        return;
+                    }
+                    
+                    flash.scale.set(1 - progress, 1 - progress, 1 - progress);
+                    flash.material.opacity = 0.8 * (1 - progress);
+                    
+                    requestAnimationFrame(animateFlash);
+                };
+                
+                animateFlash();
+            }
+            
+            updateProjectiles() {
+                if (!this.projectiles) return;
+                
+                const now = Date.now();
+                
+                for (let i = this.projectiles.length - 1; i >= 0; i--) {
+                    const projectile = this.projectiles[i];
+                    
+                    // Move projectile
+                    projectile.position.add(projectile.userData.velocity);
+                    
+                    // Check age (remove after 2 seconds)
+                    if (now - projectile.userData.creationTime > 2000) {
+                        this.scene.remove(projectile);
+                        this.projectiles.splice(i, 1);
+                        continue;
+                    }
+                    
+                    // Check for collision with alien ship
+                    if (this.alienShip) {
+                        const distance = projectile.position.distanceTo(this.alienShip.position);
+                        
+                        if (distance < 8) {
+                            // Hit!
+                            this.alienShipHit();
+                            
+                            // Remove projectile
+                            this.scene.remove(projectile);
+                            this.projectiles.splice(i, 1);
+                        }
+                    }
+                }
+            }
+            
+            alienShipHit() {
+                // Reduce alien ship health
+                this.alienShipHealth -= 20;
+                
+                // Flash red
+                const originalMaterials = [];
+                this.alienShip.traverse(child => {
+                    if (child.material && !child.userData.isFlashing) {
+                        originalMaterials.push({
+                            mesh: child,
+                            material: child.material
+                        });
+                        
+                        child.userData.isFlashing = true;
+                        child.material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+                    }
+                });
+                
+                // Restore original materials after flash
+                setTimeout(() => {
+                    originalMaterials.forEach(item => {
+                        item.mesh.material = item.material;
+                        item.mesh.userData.isFlashing = false;
+                    });
+                }, 100);
+                
+                // Create explosion if destroyed
+                if (this.alienShipHealth <= 0) {
+                    this.createExplosion(this.alienShip.position);
+                    this.scene.remove(this.alienShip);
+                    this.alienShip = null;
+                }
+            }
+            
+            createExplosion(position) {
+                // Create particles for explosion
+                const particleCount = 50;
+                const particles = new THREE.Group();
+                
+                for (let i = 0; i < particleCount; i++) {
+                    const particle = new THREE.Mesh(
+                        new THREE.BoxGeometry(
+                            Math.random() * 2 + 1, 
+                            Math.random() * 2 + 1, 
+                            Math.random() * 2 + 1
+                        ),
+                        new THREE.MeshBasicMaterial({
+                            color: Math.random() > 0.3 ? 0xff5500 : 0xffcc00,
+                            transparent: true,
+                            opacity: 1
+                        })
+                    );
+                    
+                    // Random position within explosion radius
+                    const offset = new THREE.Vector3(
+                        (Math.random() - 0.5) * 10,
+                        (Math.random() - 0.5) * 10,
+                        (Math.random() - 0.5) * 10
+                    );
+                    
+                    particle.position.copy(position).add(offset);
+                    
+                    // Random velocity
+                    const velocity = offset.clone().normalize().multiplyScalar(Math.random() * 2 + 1);
+                    particle.userData = { velocity };
+                    
+                    particles.add(particle);
+                }
+                
+                this.scene.add(particles);
+                
+                // Add explosion light
+                const light = new THREE.PointLight(0xff5500, 5, 50);
+                light.position.copy(position);
+                this.scene.add(light);
+                
+                // Animate explosion
+                const startTime = Date.now();
+                const duration = 1500;
+                
+                const animateExplosion = () => {
+                    const elapsed = Date.now() - startTime;
+                    const progress = elapsed / duration;
+                    
+                    if (progress >= 1) {
+                        this.scene.remove(particles);
+                        this.scene.remove(light);
+                        return;
+                    }
+                    
+                    // Update particles
+                    particles.children.forEach(particle => {
+                        particle.position.add(particle.userData.velocity);
+                        particle.rotation.x += 0.1;
+                        particle.rotation.y += 0.1;
+                        particle.material.opacity = 1 - progress;
+                    });
+                    
+                    // Update light
+                    light.intensity = 5 * (1 - progress);
+                    
+                    requestAnimationFrame(animateExplosion);
+                };
+                
+                animateExplosion();
+            }
+            
+            updateSpacecraftEffects() {
+                // Engine glow pulsing effect
+                if (this.engineGlow) {
+                    const pulse = 0.7 + 0.3 * Math.sin(Date.now() * 0.01);
+                    this.engineGlow.scale.set(pulse, pulse, 1 + pulse * 0.5);
+                    this.engineGlow.material.opacity = 0.7 + 0.3 * pulse;
+                }
+            }
+            
+            updateAlienShip() {
+                if (!this.alienShip) return;
+                
+                // Move alien ship
+                this.alienShip.position.add(
+                    this.alienShipDirection.clone().multiplyScalar(this.alienShipSpeed)
+                );
+                
+                // Change direction occasionally
+                if (Math.random() < 0.01) {
+                    this.alienShipDirection = new THREE.Vector3(
+                        Math.random() - 0.5,
+                        Math.random() - 0.5,
+                        Math.random() - 0.5
+                    ).normalize();
+                }
+                
+                // Keep within bounds
+                const bounds = 200;
+                if (Math.abs(this.alienShip.position.x) > bounds ||
+                    Math.abs(this.alienShip.position.y) > bounds ||
+                    Math.abs(this.alienShip.position.z) > bounds) {
+                    
+                    // Turn back toward center
+                    this.alienShipDirection = new THREE.Vector3(0, 0, 0)
+                        .sub(this.alienShip.position)
+                        .normalize();
+                }
+                
+                // Make the alien ship face its direction of travel
+                const lookTarget = this.alienShip.position.clone().add(this.alienShipDirection);
+                this.alienShip.lookAt(lookTarget);
+            }
+            
+            animate() {
+                requestAnimationFrame(this.animate.bind(this));
+                
+                // Update spacecraft effects
+                this.updateSpacecraftEffects();
+                
+                // Update projectiles
+                this.updateProjectiles();
+                
+                // Update alien ship
+                this.updateAlienShip();
+                
+                // Update planet rotation
+                if (this.planet) {
+                    this.planet.rotation.y += 0.0005;
+                }
+                
+                // Move stars slightly to create parallax effect
+                if (this.stars) {
+                    this.stars.rotation.y += 0.0001;
+                }
+                
+                // Update camera position to follow spacecraft
+                if (document.pointerLockElement) {
+                    // Game mode - camera follows spacecraft
+                    this.controls.enabled = false;
+                    
+                    const target = new THREE.Vector3();
+                    this.cameraTarget.getWorldPosition(target);
+                    this.camera.position.lerp(target, 0.1);
+                    this.camera.lookAt(this.spacecraft.position);
+                } else {
+                    // Free look mode
+                    this.controls.enabled = true;
+                    this.controls.update();
+                }
+                
+                // Render scene
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+
+        // Initialize game
+        document.addEventListener('DOMContentLoaded', () => {
+            new Game();
+        });
+    </script>
+</body>
+</html> 
