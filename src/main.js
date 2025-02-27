@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GameWorld } from './scenes/GameWorld.js';
 import { Spacecraft } from './entities/Spacecraft.js';
-import { InputHandler } from './systems/InputHandler.js';
 import { PhysicsSystem } from './systems/PhysicsSystem.js';
 import { UIManager } from './systems/UIManager.js';
 import { LODManager } from './systems/LODManager.js';
@@ -17,10 +16,13 @@ class Game {
         this.initGameSystems();
         
         // Start the game loop
+        this.clock = new THREE.Clock();
         this.animate();
         
         // Handle window resize
         window.addEventListener('resize', this.onWindowResize.bind(this));
+        
+        console.log("Game initialized successfully");
     }
     
     initThree() {
@@ -59,8 +61,7 @@ class Game {
     setupPostProcessing() {
         // Will be implemented in a future update with more advanced visual effects
         // For now, enable basic features in the renderer
-        this.renderer.gammaOutput = true;
-        this.renderer.gammaFactor = 2.2;
+        this.renderer.outputEncoding = THREE.sRGBEncoding;
         this.renderer.shadowMap.enabled = true;
     }
     
@@ -76,10 +77,9 @@ class Game {
         this.scene.add(skybox);
         
         // Add distant galaxy plane
-        const galaxyTexture = new THREE.TextureLoader().load('assets/textures/galaxy.jpg');
         const galaxyGeometry = new THREE.PlaneGeometry(20000, 20000);
         const galaxyMaterial = new THREE.MeshBasicMaterial({
-            map: galaxyTexture,
+            map: new THREE.TextureLoader().load('assets/textures/galaxy.jpg'),
             transparent: true,
             opacity: 0.5,
             depthWrite: false,
@@ -94,42 +94,92 @@ class Game {
     setupLoadingManager() {
         this.loadingManager = new THREE.LoadingManager();
         
+        // Get loading screen elements if they exist
         const progressBar = document.getElementById('loading-progress');
         const loadingScreen = document.getElementById('loading');
         
-        this.loadingManager.onProgress = (url, loaded, total) => {
-            const progress = (loaded / total) * 100;
-            progressBar.style.width = progress + '%';
-        };
-        
-        this.loadingManager.onLoad = () => {
-            setTimeout(() => {
-                loadingScreen.style.display = 'none';
-            }, 500);
-        };
+        if (progressBar && loadingScreen) {
+            this.loadingManager.onProgress = (url, loaded, total) => {
+                const progress = (loaded / total) * 100;
+                progressBar.style.width = progress + '%';
+            };
+            
+            this.loadingManager.onLoad = () => {
+                setTimeout(() => {
+                    loadingScreen.style.display = 'none';
+                }, 500);
+            };
+        }
     }
     
     initGameSystems() {
-        this.clock = new THREE.Clock();
+        // Initialize systems in the correct order
+        console.log("Initializing game systems...");
         
-        // Initialize physics system first
+        // 1. Initialize physics system first
         this.physicsSystem = new PhysicsSystem();
+        console.log("Physics system initialized");
         
-        // Initialize game world with physics system
-        this.gameWorld = new GameWorld(this.scene, this.loadingManager, this.physicsSystem);
+        // 2. Initialize LOD manager
+        this.lodManager = new LODManager(this.camera, 10000);
+        console.log("LOD manager initialized");
         
-        // Initialize player spacecraft
-        this.spacecraft = new Spacecraft(this.scene, this.camera);
+        // 3. Initialize combat system
+        this.combatSystem = new CombatSystem(this.scene, this.physicsSystem);
+        console.log("Combat system initialized");
         
-        // Add spacecraft to physics system
+        // 4. Initialize game world with all required systems
+        this.gameWorld = new GameWorld(
+            this.scene,
+            this.loadingManager,
+            this.physicsSystem
+        );
+        console.log("Game world initialized");
+        
+        // 5. Initialize player spacecraft
+        this.spacecraft = new Spacecraft({
+            scene: this.scene,
+            camera: this.camera,
+            physicsSystem: this.physicsSystem,
+            position: new THREE.Vector3(0, 0, 0)
+        });
+        console.log("Player spacecraft initialized");
+        
+        // 6. Set up spacecraft in physics system
         this.physicsSystem.addObject(this.spacecraft);
-        
-        // Set collision group for spacecraft
         if (this.physicsSystem.collisionGroups) {
             this.spacecraft.collisionGroup = this.physicsSystem.collisionGroups.spacecraft;
         }
         
-        // Register weapons for collision detection
+        // 7. Connect combat system to player
+        this.combatSystem.setPlayerShip(this.spacecraft);
+        
+        // 8. Initialize UI manager
+        this.uiManager = new UIManager(this.spacecraft, this.gameWorld);
+        this.uiManager.initialize();
+        console.log("UI manager initialized");
+        
+        // 9. Initialize upgrade system
+        this.upgradeSystem = new UpgradeSystem(
+            this.spacecraft,
+            this.combatSystem,
+            this.uiManager
+        );
+        
+        // Add some starter credits for testing
+        this.upgradeSystem.addCredits(2000);
+        console.log("Upgrade system initialized");
+        
+        // 10. Setup input management
+        this.inputManager = InputManager.getInstance();
+        this.inputManager.registerKeyBinding('u', () => {
+            this.upgradeSystem.toggleUpgradeMenu();
+        });
+        console.log("Input bindings initialized");
+        
+        // Connect systems together
+        
+        // Combat system callbacks
         this.spacecraft.onWeaponFired = (projectile) => {
             if (this.physicsSystem) {
                 this.physicsSystem.addProjectile(projectile);
@@ -138,38 +188,7 @@ class Game {
             }
         };
         
-        // Set callback for projectile hits
-        this.spacecraft.onProjectileHit = (projectile, target) => {
-            // Handle scoring and enemy destruction
-            if (target.type === 'alien') {
-                this.uiManager.updateScore(target.pointValue || 100);
-            }
-        };
-        
-        // Initialize input handler
-        this.inputHandler = new InputHandler(this.spacecraft);
-        
-        // Initialize UI
-        this.uiManager = new UIManager(this.spacecraft, this.gameWorld);
-        
-        // Set callback for UI events
-        this.uiManager.onPlayerDeath = () => {
-            this.handlePlayerDeath();
-        };
-        
-        // Initialize upgrade system
-        const upgradeSystem = new UpgradeSystem(this.spacecraft, this.physicsSystem, this.uiManager);
-        
-        // Add some starter credits for testing
-        upgradeSystem.addCredits(2000);
-        
-        // Setup key bindings for upgrade system
-        const inputManager = InputManager.getInstance();
-        inputManager.registerKeyBinding('u', () => {
-            upgradeSystem.toggleUpgradeMenu();
-        });
-        
-        // Connect credit rewards
+        // Game world callbacks
         this.gameWorld.onEnemyDestroyed = (enemyType, position) => {
             // Add credit rewards based on enemy type
             let creditReward = 0;
@@ -191,39 +210,54 @@ class Game {
             }
             
             // Add credits to player
-            upgradeSystem.addCredits(creditReward);
+            this.upgradeSystem.addCredits(creditReward);
             
             // Create explosion effect at position
-            if (position) {
-                this.combatSystem.createExplosionEffect(position, enemyType === 'asteroid' ? 'small' : 'medium');
+            if (position && this.combatSystem) {
+                this.combatSystem.createExplosion(position, enemyType === 'asteroid' ? 10 : 20);
             }
         };
         
-        // Connect UI callback for player death
+        // UI callbacks
+        this.uiManager.onPlayerDeath = () => {
+            this.handlePlayerDeath();
+        };
+        
         this.uiManager.onRestartGame = () => {
-            // Reset player spacecraft
-            this.spacecraft.reset();
-            
-            // Reset game world (respawn enemies, etc)
-            this.gameWorld.reset();
-            
-            // Reset combat system
-            this.combatSystem.reset();
+            this.restartGame();
         };
     }
     
     handlePlayerDeath() {
+        console.log("Player died - handling death");
+        
         // Reset player spacecraft
         setTimeout(() => {
             // Move to origin sector
             this.spacecraft.position.set(0, 0, 0);
             this.spacecraft.velocity.set(0, 0, 0);
             this.spacecraft.health = this.spacecraft.maxHealth;
-            this.spacecraft.ammo = this.spacecraft.maxAmmo;
+            this.spacecraft.shield = this.spacecraft.maxShield;
+            this.spacecraft.energy = this.spacecraft.maxEnergy;
             
             // Update UI
             this.uiManager.showRespawnMessage();
         }, 3000);
+    }
+    
+    restartGame() {
+        console.log("Restarting game");
+        
+        // Reset player spacecraft
+        this.spacecraft.reset();
+        
+        // Reset game world (respawn enemies, etc)
+        this.gameWorld.reset();
+        
+        // Reset combat system
+        if (this.combatSystem.reset) {
+            this.combatSystem.reset();
+        }
     }
     
     onWindowResize() {
@@ -237,17 +271,45 @@ class Game {
         
         const delta = this.clock.getDelta();
         
-        // Update game systems
-        this.inputHandler.update();
-        this.spacecraft.update(delta);
-        this.physicsSystem.update(delta);
-        this.gameWorld.update(delta);
+        // Only update if UI is not paused
+        if (!this.uiManager || !this.uiManager.isPaused()) {
+            // Update game systems in the correct order
+            
+            // 1. Update physics
+            if (this.physicsSystem) {
+                this.physicsSystem.update(delta);
+            }
+            
+            // 2. Update LOD manager
+            if (this.lodManager) {
+                this.lodManager.update(delta);
+            }
+            
+            // 3. Update spacecraft
+            if (this.spacecraft) {
+                this.spacecraft.update(delta);
+            }
+            
+            // 4. Update combat system
+            if (this.combatSystem) {
+                this.combatSystem.update(delta);
+            }
+            
+            // 5. Update game world
+            if (this.gameWorld) {
+                this.gameWorld.update(delta);
+            }
+        }
         
-        // Get current sector for UI
-        const currentSector = this.gameWorld.getSectorAt(this.spacecraft.position);
-        
-        // Update UI with sector info
-        this.uiManager.update(delta, currentSector);
+        // Always update UI
+        if (this.uiManager) {
+            // Get current sector for UI
+            const sectorInfo = this.gameWorld ? 
+                this.gameWorld.getSectorAt(this.spacecraft.position) : 
+                { name: 'unknown', sector: null };
+                
+            this.uiManager.update(delta, sectorInfo.sector);
+        }
         
         // Render the scene
         this.renderer.render(this.scene, this.camera);
@@ -257,6 +319,11 @@ class Game {
 // Initialize the game when the window loads
 window.addEventListener('load', () => {
     setTimeout(() => {
-        new Game();
+        try {
+            const game = new Game();
+            console.log("Game started successfully");
+        } catch (error) {
+            console.error("Error starting game:", error);
+        }
     }, 1000); // Small delay to allow the loading screen to display
 }); 
