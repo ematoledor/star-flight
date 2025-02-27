@@ -1108,7 +1108,7 @@ export class UIManager {
         this.showNotification(`+${points} POINTS`, 'success');
     }
     
-    showNotification(message, type = '') {
+    showNotification(message, type = '', options = {}) {
         try {
             if (!message) {
                 console.warn('UIManager: Attempted to show notification with empty message');
@@ -1120,29 +1120,103 @@ export class UIManager {
                 return;
             }
             
-            const notification = document.createElement('div');
-            notification.className = `notification ${type || ''}`;
-            notification.textContent = message.toString();
+            // Initialize notification queue if it doesn't exist
+            if (!this.notificationQueue) {
+                this.notificationQueue = [];
+                this.isProcessingNotifications = false;
+            }
             
-            this.hudElements.notificationArea.appendChild(notification);
+            // Add notification to queue
+            this.notificationQueue.push({
+                message: message.toString(),
+                type: type || '',
+                duration: options.duration || 3000,
+                priority: options.priority || 1  // Higher number = higher priority
+            });
             
-            // Remove after animation completes
-            setTimeout(() => {
-                try {
-                    if (notification && notification.parentNode) {
-                        notification.remove();
-                    }
-                } catch (e) {
-                    console.warn('UIManager: Error removing notification', e);
-                }
-            }, 3000);
+            // Sort queue by priority (higher priority first)
+            this.notificationQueue.sort((a, b) => b.priority - a.priority);
+            
+            // Limit queue length to prevent memory issues
+            if (this.notificationQueue.length > 10) {
+                this.notificationQueue = this.notificationQueue.slice(0, 10);
+            }
+            
+            // Start processing notifications if not already processing
+            if (!this.isProcessingNotifications) {
+                this.processNotificationQueue();
+            }
         } catch (error) {
-            console.warn('UIManager: Failed to show notification', error);
+            console.warn('UIManager: Failed to queue notification', error);
+        }
+    }
+    
+    processNotificationQueue() {
+        try {
+            if (!this.notificationQueue || this.notificationQueue.length === 0) {
+                this.isProcessingNotifications = false;
+                return;
+            }
+            
+            this.isProcessingNotifications = true;
+            
+            // Get next notification
+            const next = this.notificationQueue.shift();
+            
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.className = `notification ${next.type}`;
+            notification.textContent = next.message;
+            
+            // Check for duplicate notifications already on screen
+            const existingNotifications = this.hudElements.notificationArea.querySelectorAll('.notification');
+            let isDuplicate = false;
+            
+            existingNotifications.forEach(existing => {
+                if (existing.textContent === next.message) {
+                    // Reset the animation for the existing notification
+                    existing.style.animation = 'none';
+                    // Trigger reflow
+                    void existing.offsetWidth;
+                    // Restart the animation
+                    existing.style.animation = `fadeOut ${next.duration/1000}s forwards`;
+                    isDuplicate = true;
+                }
+            });
+            
+            if (!isDuplicate) {
+                // Add new notification to DOM
+                this.hudElements.notificationArea.appendChild(notification);
+                
+                // Set display duration
+                notification.style.animationDuration = `${next.duration/1000}s`;
+                
+                // Remove after animation completes
+                setTimeout(() => {
+                    try {
+                        if (notification && notification.parentNode) {
+                            notification.remove();
+                        }
+                    } catch (e) {
+                        console.warn('UIManager: Error removing notification', e);
+                    }
+                    
+                    // Process next notification after a small delay
+                    setTimeout(() => this.processNotificationQueue(), 250);
+                }, next.duration);
+            } else {
+                // If it was a duplicate, process next notification after a small delay
+                setTimeout(() => this.processNotificationQueue(), 250);
+            }
+        } catch (error) {
+            console.warn('UIManager: Failed to process notification queue', error);
+            // Continue processing queue even if there was an error
+            setTimeout(() => this.processNotificationQueue(), 250);
         }
     }
     
     showRespawnMessage() {
-        this.showNotification('SPACECRAFT RECONSTRUCTED', 'warning');
+        this.showNotification('SPACECRAFT RECONSTRUCTED', 'warning', { priority: 3 });
     }
     
     showDeathScreen() {
@@ -1181,68 +1255,92 @@ export class UIManager {
     }
     
     update(delta, currentSector) {
+        // ULTRA-SIMPLE approach - no complex operations that can cause errors
         try {
-            // Don't continue if not initialized
-            if (!this.isInitialized) return;
-            
-            // Update HUD elements if possible
-            if (this.updateHUD && typeof this.updateHUD === 'function') {
-                try {
-                    this.updateHUD();
-                } catch (hudError) {
-                    console.warn("Error updating HUD:", hudError);
-                }
-            }
-            
-            // Skip sector updates if no currentSector provided
-            if (!currentSector) return;
-            
-            // Update sector information if changed
-            try {
-                // Store current sector for reference
-                const prevSector = this.currentSector;
-                this.currentSector = currentSector;
-                
-                // Only update sector info if sector is new or changed
-                const currentName = currentSector && currentSector.name ? currentSector.name : "unknown";
-                const prevName = prevSector && prevSector.name ? prevSector.name : "";
-                
-                // Only update and notify if sector has changed
-                if (!prevSector || currentName !== prevName) {
-                    // Update sector information
-                    this.updateSectorInfo(currentSector);
+            // Update basic HUD for health, shield, energy
+            if (this.spacecraft) {
+                // Update health
+                if (this.hudElements.healthBar && typeof this.spacecraft.health === 'number') {
+                    const healthPercent = (this.spacecraft.health / this.spacecraft.maxHealth) * 100;
+                    this.hudElements.healthBar.style.width = `${Math.max(0, Math.min(100, healthPercent))}%`;
                     
-                    // Show new sector notification
-                    if (currentName && currentName !== "unknown") {
-                        try {
-                            this.showNotification(`ENTERING ${currentName.toUpperCase()} SECTOR`);
-                        } catch (e) {
-                            console.warn("Error showing sector notification", e);
-                        }
+                    if (this.hudElements.healthValue) {
+                        this.hudElements.healthValue.textContent = `${Math.round(healthPercent)}%`;
                     }
                 }
-            } catch (sectorError) {
-                console.warn("Error handling sector update:", sectorError);
+                
+                // Update shield
+                if (this.hudElements.shieldBar && typeof this.spacecraft.shield === 'number') {
+                    const shieldPercent = (this.spacecraft.shield / this.spacecraft.maxShield) * 100;
+                    this.hudElements.shieldBar.style.width = `${Math.max(0, Math.min(100, shieldPercent))}%`;
+                    
+                    if (this.hudElements.shieldValue) {
+                        this.hudElements.shieldValue.textContent = `${Math.round(shieldPercent)}%`;
+                    }
+                }
+                
+                // Update energy
+                if (this.hudElements.energyBar && typeof this.spacecraft.energy === 'number') {
+                    const energyPercent = (this.spacecraft.energy / this.spacecraft.maxEnergy) * 100;
+                    this.hudElements.energyBar.style.width = `${Math.max(0, Math.min(100, energyPercent))}%`;
+                    
+                    if (this.hudElements.energyValue) {
+                        this.hudElements.energyValue.textContent = `${Math.round(energyPercent)}%`;
+                    }
+                }
+                
+                // Update position if available
+                if (this.hudElements.positionValue && this.spacecraft.position) {
+                    const x = Math.round(this.spacecraft.position.x);
+                    const y = Math.round(this.spacecraft.position.y);
+                    const z = Math.round(this.spacecraft.position.z);
+                    this.hudElements.positionValue.textContent = `X: ${x} Y: ${y} Z: ${z}`;
+                }
             }
             
-            // Check player health
-            try {
-                if (this.spacecraft && 
-                    typeof this.spacecraft.health === 'number' && 
-                    this.spacecraft.health <= 0) {
+            // Very basic sector display with no object counting
+            if (currentSector && this.hudElements.sectorName) {
+                const name = currentSector.name || "Unknown Sector";
+                this.hudElements.sectorName.textContent = name;
+                
+                // Store current sector for reference (safe way)
+                if (this.currentSector !== currentSector) {
+                    const prevName = this.currentSector ? (this.currentSector.name || "") : "";
+                    const currentName = currentSector.name || "";
                     
-                    // Show death screen
-                    this.showDeathScreen();
+                    if (prevName !== currentName) {
+                        this.showNotification(`ENTERING ${currentName.toUpperCase()} SECTOR`);
+                    }
                     
-                    // Reset player health to prevent multiple death screens
-                    this.spacecraft.health = 0.1;
+                    this.currentSector = currentSector;
                 }
-            } catch (healthError) {
-                console.warn("Error checking player health:", healthError);
+                
+                // Update difficulty stars if available
+                if (this.hudElements.sectorDifficulty && currentSector.difficulty) {
+                    const difficulty = Math.max(0, Math.min(5, currentSector.difficulty));
+                    this.hudElements.sectorDifficulty.textContent = "★".repeat(difficulty);
+                }
+                
+                // Fixed placeholder values for sector objects - no counting
+                if (this.hudElements.sectorPlanets) {
+                    this.hudElements.sectorPlanets.textContent = "???";
+                }
+                
+                if (this.hudElements.sectorAliens) {
+                    this.hudElements.sectorAliens.textContent = "???";
+                }
             }
+            
+            // Check for player death
+            if (this.spacecraft && typeof this.spacecraft.health === 'number' && this.spacecraft.health <= 0) {
+                this.showDeathScreen();
+                // Reset health to prevent multiple death screens
+                this.spacecraft.health = 0.1;
+            }
+            
         } catch (error) {
-            // Never throw errors from UI updates - UI errors shouldn't crash the game
-            console.warn("Critical error in UI update:", error);
+            // Never throw errors from UI
+            console.warn("Simplified UI update error:", error);
         }
     }
     

@@ -11,18 +11,42 @@ import { InputManager } from './systems/InputManager.js';
 
 class Game {
     constructor() {
-        this.initThree();
-        this.setupLoadingManager();
-        this.initGameSystems();
+        // Game properties
+        this.scene = null;
+        this.camera = null;
+        this.renderer = null;
+        this.spacecraft = null;
+        this.gameWorld = null;
+        this.physicsSystem = null;
+        this.lodManager = null;
+        this.combatSystem = null;
+        this.uiManager = null;
+        this.upgradeSystem = null;
+        this.inputManager = null;
         
-        // Start the game loop
-        this.clock = new THREE.Clock();
-        this.animate();
+        // Performance monitoring
+        this.fps = 0;
+        this.frameCount = 0;
+        this.lastFpsUpdate = 0;
+        this.lastTime = performance.now();
+        this.fpsElement = null;
         
-        // Handle window resize
-        window.addEventListener('resize', this.onWindowResize.bind(this));
+        // Docking system tracking
+        this.lastDockingPromptTime = null;
         
-        console.log("Game initialized successfully");
+        // Loading manager for assets
+        this.loadingManager = new THREE.LoadingManager();
+        this.loadingManager.onProgress = (url, loaded, total) => {
+            const progress = (loaded / total) * 100;
+            this.updateLoadingProgress(progress);
+        };
+        
+        // Bind methods
+        this.animate = this.animate.bind(this);
+        this.onWindowResize = this.onWindowResize.bind(this);
+        
+        // Initialize the game
+        this.init();
     }
     
     initThree() {
@@ -268,7 +292,9 @@ class Game {
             // Create a minimal game world as fallback
             this.gameWorld = {
                 update: () => {},
-                reset: () => {}
+                reset: () => {},
+                getNearestMothership: () => null,
+                isNearMothershipDockingBay: () => false
             };
         }
         
@@ -282,7 +308,7 @@ class Game {
                 scene: this.scene,
                 camera: this.camera,
                 physicsSystem: this.physicsSystem,
-                position: new THREE.Vector3(0, 0, 0)
+                position: new THREE.Vector3(0, 0, 0) // Initial position will be updated by mothership
             });
             console.log("Player spacecraft initialized");
             
@@ -298,19 +324,27 @@ class Game {
             if (this.combatSystem) {
                 this.combatSystem.setPlayerShip(this.spacecraft);
             }
+            
+            // 8. Dock the spacecraft in the mothership initially
+            this.dockWithMothership();
         } catch (error) {
             console.error("Error initializing spacecraft:", error);
         }
         
-        // 8. Initialize UI manager
+        // 9. Initialize UI manager
         try {
             this.uiManager = new UIManager(this.spacecraft, this.gameWorld);
             console.log("UI manager initialized");
+            
+            // Add mothership interaction notification
+            if (this.uiManager.showNotification) {
+                this.uiManager.showNotification('PRESS L TO LAUNCH FROM MOTHERSHIP', 'info');
+            }
         } catch (error) {
             console.error("Error initializing UI manager:", error);
         }
         
-        // 9. Initialize upgrade system
+        // 10. Initialize upgrade system
         this.upgradeSystem = new UpgradeSystem(
             this.spacecraft,
             this.combatSystem,
@@ -321,7 +355,7 @@ class Game {
         this.upgradeSystem.addCredits(2000);
         console.log("Upgrade system initialized");
         
-        // 10. Setup input management
+        // 11. Setup input management
         this.inputManager = InputManager.getInstance();
         
         // Register upgrade menu key
@@ -334,6 +368,11 @@ class Game {
             if (this.uiManager) {
                 this.uiManager.togglePause();
             }
+        });
+        
+        // Register launch/dock key (L)
+        this.inputManager.registerKeyBinding('l', () => {
+            this.toggleLaunchDock();
         });
         
         console.log("Input bindings initialized");
@@ -389,14 +428,106 @@ class Game {
         };
     }
     
+    // Add this new method to dock with a mothership
+    dockWithMothership() {
+        try {
+            // Find the nearest mothership
+            const mothership = this.gameWorld.getNearestMothership(this.spacecraft.position);
+            
+            if (mothership) {
+                // Dock the spacecraft
+                mothership.dockSpacecraft(this.spacecraft);
+                
+                // Update camera to look at the mothership
+                this.camera.position.copy(mothership.position).add(new THREE.Vector3(0, 100, 300));
+                this.camera.lookAt(mothership.position);
+                
+                // Disable first-person controls temporarily
+                this.spacecraft.controlsEnabled = false;
+                
+                // Show docking notification
+                if (this.uiManager && this.uiManager.showNotification) {
+                    this.uiManager.showNotification('DOCKED WITH MOTHERSHIP - PRESS L TO LAUNCH', 'info');
+                }
+                
+                return true;
+            }
+        } catch (error) {
+            console.error("Error docking with mothership:", error);
+        }
+        return false;
+    }
+    
+    // Add this method to launch from mothership
+    launchFromMothership() {
+        try {
+            // Find the nearest mothership
+            const mothership = this.gameWorld.getNearestMothership(this.spacecraft.position);
+            
+            if (mothership && mothership.isDocked) {
+                // Launch the spacecraft
+                mothership.launchSpacecraft();
+                
+                // Enable first-person controls
+                this.spacecraft.controlsEnabled = true;
+                
+                // Reset camera to follow the spacecraft
+                this.camera.position.set(0, 10, 30);
+                this.camera.lookAt(new THREE.Vector3(0, 0, -100));
+                
+                // Show launch notification
+                if (this.uiManager && this.uiManager.showNotification) {
+                    this.uiManager.showNotification('SPACECRAFT LAUNCHED - GOOD LUCK COMMANDER!', 'success');
+                }
+                
+                return true;
+            }
+        } catch (error) {
+            console.error("Error launching from mothership:", error);
+        }
+        return false;
+    }
+    
+    // Method to toggle between launch and dock
+    toggleLaunchDock() {
+        // Check if we're currently docked first
+        const mothership = this.gameWorld.getNearestMothership(this.spacecraft.position);
+        if (mothership && mothership.isDocked) {
+            // If docked, launch
+            this.launchFromMothership();
+        } else {
+            // If not docked, check if we're close enough to dock
+            const nearbyMothership = this.gameWorld.isNearMothershipDockingBay(this.spacecraft);
+            if (nearbyMothership) {
+                // If near a docking bay, dock
+                nearbyMothership.dockSpacecraft(this.spacecraft);
+                
+                // Show docking notification
+                if (this.uiManager && this.uiManager.showNotification) {
+                    this.uiManager.showNotification('DOCKED WITH MOTHERSHIP - PRESS L TO LAUNCH', 'info');
+                }
+            } else if (mothership) {
+                // Not close enough to dock
+                const distance = this.spacecraft.position.distanceTo(mothership.position);
+                const direction = mothership.position.clone().sub(this.spacecraft.position).normalize();
+                
+                // Show a navigation hint
+                if (this.uiManager && this.uiManager.showNotification) {
+                    this.uiManager.showNotification(`MOTHERSHIP ${distance.toFixed(0)}m AWAY - GET CLOSER TO DOCK`, 'warning');
+                }
+            }
+        }
+    }
+    
     handlePlayerDeath() {
         console.log("Player died - handling death");
         
         // Reset player spacecraft
         setTimeout(() => {
-            // Move to origin sector
-            this.spacecraft.position.set(0, 0, 0);
-            this.spacecraft.velocity.set(0, 0, 0);
+            // Dock with mothership
+            this.dockWithMothership();
+            
+            // Restore health
             this.spacecraft.health = this.spacecraft.maxHealth;
             this.spacecraft.shield = this.spacecraft.maxShield;
             this.spacecraft.energy = this.spacecraft.maxEnergy;
@@ -428,95 +559,299 @@ class Game {
     }
     
     animate() {
-        // Schedule next frame - must run even if there are errors
-        requestAnimationFrame(this.animate.bind(this));
-        
         try {
-            const delta = this.clock.getDelta();
+            // Schedule next frame first (should happen even if an error occurs)
+            requestAnimationFrame(this.animate.bind(this));
             
-            // Only update if UI is not paused - use optional chaining to avoid errors
-            let isPaused = false;
+            // Calculate delta time
+            const now = performance.now();
+            const delta = (now - this.lastTime) / 1000; // Convert to seconds
+            this.lastTime = now;
+            
+            // Skip if paused
             try {
-                isPaused = this.uiManager?.isPaused?.() || false;
-            } catch (pauseError) {
-                console.warn('Error checking pause state:', pauseError);
-            }
-            
-            if (!isPaused) {
-                // Update game systems in the correct order
-                try {
-                    // 1. Update physics
-                    if (this.physicsSystem) {
-                        this.physicsSystem.update(delta);
-                    }
-                    
-                    // 2. Update LOD manager
-                    if (this.lodManager) {
-                        this.lodManager.update(delta);
-                    }
-                    
-                    // 3. Update spacecraft
-                    if (this.spacecraft) {
-                        this.spacecraft.update(delta);
-                    }
-                    
-                    // 4. Update combat system
-                    if (this.combatSystem) {
-                        this.combatSystem.update(delta);
-                    }
-                    
-                    // 5. Update game world
-                    if (this.gameWorld) {
-                        this.gameWorld.update(delta);
-                    }
-                } catch (updateError) {
-                    console.error('Error in game update loop:', updateError);
+                if (this.uiManager?.isPaused) {
+                    return;
                 }
+            } catch (error) {
+                console.warn('Error checking pause state:', error);
             }
             
-            // Always update UI - with extra defensive coding
+            // Update game systems
+            try {
+                // Update physics
+                if (this.physicsSystem) {
+                    this.physicsSystem.update(delta);
+                }
+                
+                // Update LOD manager
+                if (this.lodManager) {
+                    this.lodManager.update(this.camera.position);
+                }
+                
+                // Update motherships
+                if (this.gameWorld && this.gameWorld.motherships) {
+                    this.gameWorld.motherships.forEach(mothership => {
+                        if (mothership && mothership.update) {
+                            mothership.update(delta);
+                        }
+                    });
+                }
+                
+                // Update player spacecraft
+                if (this.spacecraft) {
+                    this.spacecraft.update(delta);
+                    
+                    // Check for mothership docking proximity when player is not docked
+                    if (this.gameWorld && this.gameWorld.isNearMothershipDockingBay) {
+                        try {
+                            const nearbyMothership = this.gameWorld.isNearMothershipDockingBay(this.spacecraft);
+                            
+                            // Show docking prompt if near a mothership and not already docked
+                            if (nearbyMothership && !nearbyMothership.isDocked && this.uiManager && 
+                                this.uiManager.showNotification && !this.lastDockingPromptTime) {
+                                
+                                this.uiManager.showNotification('NEAR DOCKING BAY - PRESS L TO DOCK', 'info', { priority: 2 });
+                                this.lastDockingPromptTime = now;
+                            }
+                            
+                            // Reset docking prompt timer
+                            if (this.lastDockingPromptTime && (now - this.lastDockingPromptTime > 10000)) {
+                                this.lastDockingPromptTime = null;
+                            }
+                        } catch (error) {
+                            console.warn('Error checking docking proximity:', error);
+                        }
+                    }
+                }
+                
+                // Update combat system
+                if (this.combatSystem) {
+                    this.combatSystem.update(delta);
+                }
+                
+                // Update game world
+                if (this.gameWorld) {
+                    this.gameWorld.update(delta, this.spacecraft ? this.spacecraft.position : null);
+                }
+            } catch (error) {
+                console.error('Error updating game systems:', error);
+            }
+            
+            // Update UI
             try {
                 if (this.uiManager) {
-                    try {
-                        // Get current sector for UI - with error checks
-                        let sectorInfo = { name: 'unknown', sector: null };
-                        
-                        if (this.gameWorld && this.spacecraft && this.spacecraft.position) {
-                            try {
-                                sectorInfo = this.gameWorld.getSectorAt(this.spacecraft.position) || sectorInfo;
-                            } catch (sectorError) {
-                                console.warn('Error getting sector information:', sectorError);
-                            }
+                    // Get current sector info safely
+                    let sectorInfo = null;
+                    if (this.gameWorld && this.gameWorld.getCurrentSector) {
+                        try {
+                            sectorInfo = this.gameWorld.getCurrentSector();
+                        } catch (error) {
+                            console.warn('Error getting current sector:', error);
                         }
-                        
-                        // Make sure we don't pass undefined to the UI update
-                        const safeInfo = {
-                            name: sectorInfo.name || 'unknown',
-                            sector: sectorInfo.sector || null
-                        };
-                        
-                        // Call UI update with safe sector info
-                        this.uiManager.update(delta, safeInfo);
-                    } catch (uiError) {
-                        console.error('Error in UI manager update:', uiError);
                     }
+                    
+                    // Update UI with current sector info and combat system
+                    this.uiManager.update(sectorInfo, this.combatSystem);
                 }
-            } catch (outerUiError) {
-                console.error('Critical error in UI update section:', outerUiError);
+            } catch (error) {
+                console.error('Error updating UI:', error);
             }
             
-            // Render the scene
+            // Render scene
             try {
-                if (this.scene && this.camera && this.renderer) {
+                if (this.renderer && this.scene && this.camera) {
                     this.renderer.render(this.scene, this.camera);
                 }
-            } catch (renderError) {
-                console.error('Error in scene rendering:', renderError);
+            } catch (error) {
+                console.error('Error rendering scene:', error);
             }
-        } catch (animateError) {
-            console.error('Critical error in animation loop:', animateError);
-            // Never stop the animation loop - continue to next frame regardless
+            
+            // Update FPS counter
+            this.frameCount++;
+            if (now - this.lastFpsUpdate > 1000) {
+                this.fps = Math.round((this.frameCount * 1000) / (now - this.lastFpsUpdate));
+                this.frameCount = 0;
+                this.lastFpsUpdate = now;
+                
+                if (this.fpsElement) {
+                    this.fpsElement.textContent = `FPS: ${this.fps}`;
+                }
+            }
+        } catch (error) {
+            console.error('Critical error in animation loop:', error);
+            // The animation will continue because we scheduled the next frame first
         }
+    }
+    
+    init() {
+        try {
+            console.log("Initializing game...");
+            
+            // Create FPS counter element
+            this.createFpsCounter();
+            
+            // Setup loading screen
+            this.setupLoadingScreen();
+            
+            // Initialize Three.js core components
+            this.initThree();
+            
+            // Initialize game systems
+            this.initGameSystems();
+            
+            // Add event listeners
+            window.addEventListener('resize', this.onWindowResize);
+            
+            // Start the animation loop
+            this.animate();
+            
+            console.log("Game initialized successfully");
+        } catch (error) {
+            console.error("Error initializing game:", error);
+            this.showErrorMessage("Failed to initialize game. Please reload the page.");
+        }
+    }
+    
+    createFpsCounter() {
+        this.fpsElement = document.createElement('div');
+        this.fpsElement.id = 'fps-counter';
+        this.fpsElement.style.position = 'absolute';
+        this.fpsElement.style.top = '10px';
+        this.fpsElement.style.right = '10px';
+        this.fpsElement.style.color = '#00ff66';
+        this.fpsElement.style.fontFamily = 'monospace';
+        this.fpsElement.style.fontSize = '14px';
+        this.fpsElement.style.textShadow = '1px 1px 0 #000';
+        this.fpsElement.style.zIndex = '1000';
+        this.fpsElement.textContent = 'FPS: --';
+        document.body.appendChild(this.fpsElement);
+    }
+    
+    setupLoadingScreen() {
+        // Create loading screen container
+        const loadingScreen = document.createElement('div');
+        loadingScreen.id = 'loading-screen';
+        loadingScreen.style.position = 'fixed';
+        loadingScreen.style.width = '100%';
+        loadingScreen.style.height = '100%';
+        loadingScreen.style.top = '0';
+        loadingScreen.style.left = '0';
+        loadingScreen.style.background = '#000820';
+        loadingScreen.style.display = 'flex';
+        loadingScreen.style.flexDirection = 'column';
+        loadingScreen.style.alignItems = 'center';
+        loadingScreen.style.justifyContent = 'center';
+        loadingScreen.style.zIndex = '1000';
+        loadingScreen.style.fontFamily = 'Orbitron, sans-serif';
+        loadingScreen.style.color = '#8af7ff';
+        
+        // Create title
+        const title = document.createElement('h1');
+        title.textContent = 'STAR FLIGHT';
+        title.style.fontSize = '48px';
+        title.style.marginBottom = '30px';
+        title.style.textShadow = '0 0 10px #8af7ff';
+        
+        // Create loading bar container
+        const loadingBarContainer = document.createElement('div');
+        loadingBarContainer.style.width = '80%';
+        loadingBarContainer.style.maxWidth = '500px';
+        loadingBarContainer.style.height = '20px';
+        loadingBarContainer.style.background = 'rgba(0, 20, 40, 0.8)';
+        loadingBarContainer.style.borderRadius = '10px';
+        loadingBarContainer.style.overflow = 'hidden';
+        loadingBarContainer.style.border = '1px solid #8af7ff';
+        loadingBarContainer.style.boxShadow = '0 0 10px rgba(138, 247, 255, 0.5)';
+        
+        // Create loading bar
+        const loadingBar = document.createElement('div');
+        loadingBar.id = 'loading-bar';
+        loadingBar.style.width = '0%';
+        loadingBar.style.height = '100%';
+        loadingBar.style.background = 'linear-gradient(to right, #0066ff, #8af7ff)';
+        loadingBar.style.transition = 'width 0.3s ease-in-out';
+        
+        // Create loading text
+        const loadingText = document.createElement('div');
+        loadingText.id = 'loading-text';
+        loadingText.textContent = 'Loading: 0%';
+        loadingText.style.marginTop = '10px';
+        loadingText.style.fontSize = '16px';
+        
+        // Create subtitle
+        const subtitle = document.createElement('div');
+        subtitle.textContent = 'Preparing for takeoff...';
+        subtitle.style.marginTop = '30px';
+        subtitle.style.fontSize = '18px';
+        subtitle.style.opacity = '0.8';
+        
+        // Append elements
+        loadingBarContainer.appendChild(loadingBar);
+        loadingScreen.appendChild(title);
+        loadingScreen.appendChild(loadingBarContainer);
+        loadingScreen.appendChild(loadingText);
+        loadingScreen.appendChild(subtitle);
+        document.body.appendChild(loadingScreen);
+        
+        // Store references
+        this.loadingScreen = loadingScreen;
+        this.loadingBar = loadingBar;
+        this.loadingText = loadingText;
+    }
+    
+    updateLoadingProgress(progress) {
+        if (this.loadingBar && this.loadingText) {
+            this.loadingBar.style.width = `${progress}%`;
+            this.loadingText.textContent = `Loading: ${Math.round(progress)}%`;
+            
+            // Hide loading screen when complete
+            if (progress >= 100) {
+                setTimeout(() => {
+                    if (this.loadingScreen) {
+                        this.loadingScreen.style.opacity = '0';
+                        this.loadingScreen.style.transition = 'opacity 1s ease-in-out';
+                        setTimeout(() => {
+                            if (this.loadingScreen && this.loadingScreen.parentNode) {
+                                this.loadingScreen.parentNode.removeChild(this.loadingScreen);
+                            }
+                        }, 1000);
+                    }
+                }, 500);
+            }
+        }
+    }
+    
+    showErrorMessage(message) {
+        const errorMessage = document.createElement('div');
+        errorMessage.style.position = 'fixed';
+        errorMessage.style.top = '50%';
+        errorMessage.style.left = '50%';
+        errorMessage.style.transform = 'translate(-50%, -50%)';
+        errorMessage.style.background = 'rgba(255, 0, 0, 0.8)';
+        errorMessage.style.color = 'white';
+        errorMessage.style.padding = '20px';
+        errorMessage.style.borderRadius = '5px';
+        errorMessage.style.fontFamily = 'Arial, sans-serif';
+        errorMessage.style.zIndex = '1001';
+        errorMessage.style.maxWidth = '80%';
+        errorMessage.style.textAlign = 'center';
+        errorMessage.textContent = message;
+        
+        const reloadButton = document.createElement('button');
+        reloadButton.textContent = 'Reload Page';
+        reloadButton.style.marginTop = '15px';
+        reloadButton.style.padding = '8px 16px';
+        reloadButton.style.background = '#fff';
+        reloadButton.style.color = '#f00';
+        reloadButton.style.border = 'none';
+        reloadButton.style.borderRadius = '4px';
+        reloadButton.style.cursor = 'pointer';
+        reloadButton.addEventListener('click', () => window.location.reload());
+        
+        errorMessage.appendChild(document.createElement('br'));
+        errorMessage.appendChild(reloadButton);
+        document.body.appendChild(errorMessage);
     }
 }
 

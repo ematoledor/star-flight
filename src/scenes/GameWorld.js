@@ -3,6 +3,7 @@ import { Planet } from '../entities/Planet.js';
 import { AlienShip } from '../entities/AlienShip.js';
 import { AsteroidField } from '../components/AsteroidField.js';
 import { Nebula } from '../components/Nebula.js';
+import { Mothership } from '../entities/Mothership.js';
 
 // Fallback classes in case of import failures
 class FallbackAlienShip extends THREE.Object3D {
@@ -28,6 +29,7 @@ export class GameWorld {
         // Game world state
         this.planets = [];
         this.aliens = [];
+        this.motherships = [];
         this.asteroidFields = [];
         this.nebulae = [];
         this.sectors = [];
@@ -43,11 +45,34 @@ export class GameWorld {
     }
     
     initialize() {
-        // Generate background star field
-        this.generateStarField();
-        
-        // Create sectors with progressive loading
-        this.createSectors();
+        try {
+            // Generate background star field
+            this.generateStarField();
+            
+            // Create sectors with progressive loading
+            this.createSectors();
+            
+            // Create the main mothership carrier in the origin sector
+            this.createMothership(new THREE.Vector3(0, 200, 0));
+            
+            // Populate initial sector (origin)
+            this.populateSector({ 
+                name: "Alpha Quadrant", 
+                sector: {
+                    position: new THREE.Vector3(0, 0, 0),
+                    radius: 2000,
+                    difficulty: 1
+                }
+            });
+            
+            // Mark origin as populated
+            const originSector = this.sectors.find(s => s.name === "Alpha Quadrant");
+            if (originSector) {
+                originSector.isPopulated = true;
+            }
+        } catch (error) {
+            console.error("Error in GameWorld initialization:", error);
+        }
     }
     
     createSectors() {
@@ -697,5 +722,57 @@ export class GameWorld {
     // Method to help with sector transitioning
     setCurrentSector(sector) {
         this.setActiveSector(sector);
+    }
+    
+    // Add this new method to create the mothership
+    createMothership(position) {
+        try {
+            const mothership = new Mothership({
+                scene: this.scene,
+                physicsSystem: this.physicsSystem,
+                position: position || new THREE.Vector3(0, 200, 0)
+            });
+            
+            this.motherships.push(mothership);
+            console.log("Mothership carrier created at", position);
+            
+            return mothership;
+        } catch (error) {
+            console.error("Error creating mothership:", error);
+            return null;
+        }
+    }
+    
+    // Add a method to get the nearest mothership
+    getNearestMothership(position) {
+        if (!position || this.motherships.length === 0) {
+            return null;
+        }
+        
+        let nearest = null;
+        let minDistance = Infinity;
+        
+        for (const mothership of this.motherships) {
+            const distance = mothership.position.distanceTo(position);
+            if (distance < minDistance) {
+                nearest = mothership;
+                minDistance = distance;
+            }
+        }
+        
+        return nearest;
+    }
+    
+    // Add a method to check if spacecraft is near a mothership docking bay
+    isNearMothershipDockingBay(spacecraft) {
+        if (!spacecraft) return false;
+        
+        for (const mothership of this.motherships) {
+            if (mothership.isInDockingRange(spacecraft)) {
+                return mothership;
+            }
+        }
+        
+        return false;
     }
 } 
