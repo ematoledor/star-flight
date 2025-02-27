@@ -182,15 +182,59 @@ class Game {
         const loadingScreen = document.getElementById('loading');
         
         if (progressBar && loadingScreen) {
+            // Track loading start time for analytics
+            const loadingStartTime = performance.now();
+            
+            // Set initial message
+            const loadingMessage = document.querySelector('#loading p');
+            if (loadingMessage) {
+                loadingMessage.textContent = 'Preparing game assets...';
+            }
+            
+            // Use a more responsive progress update
             this.loadingManager.onProgress = (url, loaded, total) => {
+                // Calculate progress percentage
                 const progress = (loaded / total) * 100;
                 progressBar.style.width = progress + '%';
+                
+                // Update message based on progress
+                if (loadingMessage) {
+                    if (progress < 30) {
+                        loadingMessage.textContent = 'Loading textures and models...';
+                    } else if (progress < 60) {
+                        loadingMessage.textContent = 'Building game world...';
+                    } else if (progress < 90) {
+                        loadingMessage.textContent = 'Initializing physics...';
+                    } else {
+                        loadingMessage.textContent = 'Almost ready!';
+                    }
+                }
+            };
+            
+            // Add error handling
+            this.loadingManager.onError = (url) => {
+                console.error('Error loading asset:', url);
+                // Continue loading other assets
+                if (loadingMessage) {
+                    loadingMessage.textContent = 'Some assets failed to load, but we can continue...';
+                }
             };
             
             this.loadingManager.onLoad = () => {
+                const loadTime = performance.now() - loadingStartTime;
+                console.log(`Game assets loaded in ${loadTime.toFixed(2)}ms`);
+                
+                // Hide loading screen more quickly
                 setTimeout(() => {
-                    loadingScreen.style.display = 'none';
-                }, 500);
+                    // Fade out the loading screen
+                    loadingScreen.style.opacity = '0';
+                    loadingScreen.style.transition = 'opacity 0.3s ease';
+                    
+                    // Then hide it
+                    setTimeout(() => {
+                        loadingScreen.style.display = 'none';
+                    }, 300);
+                }, 200); // Reduced delay
             };
         }
     }

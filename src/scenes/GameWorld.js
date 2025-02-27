@@ -28,51 +28,123 @@ export class GameWorld {
     }
     
     initialize() {
-        console.log("Initializing game world...");
-        
-        // Clear existing objects if any
-        this.clearWorld();
-        
         // Generate background star field
         this.generateStarField();
         
-        // Generate sectors with planets, aliens, asteroid fields, and nebulae
-        this.generateSectors();
+        // Create sectors with progressive loading
+        this.createSectors();
+    }
+    
+    createSectors() {
+        // Create a few sectors of space
+        this.sectors = [
+            { name: "Alpha Quadrant", position: new THREE.Vector3(0, 0, 0), difficulty: 1 },
+            { name: "Beta Quadrant", position: new THREE.Vector3(5000, 0, 0), difficulty: 2 },
+            { name: "Gamma Quadrant", position: new THREE.Vector3(0, 0, 5000), difficulty: 3 },
+            { name: "Delta Quadrant", position: new THREE.Vector3(5000, 0, 5000), difficulty: 4 }
+        ];
         
-        // Set current sector to the first one (usually origin/Alpha sector)
-        if (this.sectors.length > 0) {
-            this.setCurrentSector(this.sectors[0]);
+        // Set initial sector
+        this.setActiveSector(this.sectors[0]);
+        
+        // Schedule loading of other sectors in the background
+        setTimeout(() => this.loadRemainingSecotrsInBackground(), 2000);
+    }
+    
+    loadRemainingSecotrsInBackground() {
+        console.log("Loading remaining sectors in background...");
+        
+        // Create other sectors with slight delay to prioritize initial rendering
+        for (let i = 1; i < this.sectors.length; i++) {
+            setTimeout(() => {
+                console.log(`Creating sector: ${this.sectors[i].name}`);
+                this.populateSector(this.sectors[i]);
+            }, i * 1000); // 1 second between each sector creation
         }
     }
     
+    setActiveSector(sector) {
+        this.currentSector = sector;
+        console.log(`Entered sector: ${sector.name}`);
+        
+        // Create contents for this sector if it hasn't been populated yet
+        if (!sector.isPopulated) {
+            this.populateSector(sector);
+        }
+    }
+    
+    populateSector(sector) {
+        // Add a planets to the sector
+        const numPlanets = 1 + Math.floor(Math.random() * 2); // 1-2 planets per sector
+        
+        for (let i = 0; i < numPlanets; i++) {
+            // Create with lower initial detail
+            const planetPosition = this.getRandomPositionInSector(sector);
+            setTimeout(() => {
+                const planet = this.createPlanet(planetPosition);
+                this.planets.push(planet);
+            }, i * 200); // Stagger planet creation
+        }
+        
+        // Add asteroid fields
+        const numAsteroidFields = Math.floor(Math.random() * 3); // 0-2 asteroid fields
+        
+        for (let i = 0; i < numAsteroidFields; i++) {
+            setTimeout(() => {
+                const asteroidField = this.createAsteroidField(sector);
+                this.asteroidFields.push(asteroidField);
+            }, numPlanets * 200 + i * 300); // Start after planets are created
+        }
+        
+        // Add some alien ships based on sector difficulty
+        const numAliens = 3 + Math.floor(Math.random() * sector.difficulty * 2);
+        
+        for (let i = 0; i < numAliens; i++) {
+            setTimeout(() => {
+                const alien = this.createAlienShip(sector);
+                this.aliens.push(alien);
+            }, numPlanets * 200 + numAsteroidFields * 300 + i * 100);
+        }
+        
+        // Add nebula
+        if (Math.random() > 0.5) {
+            setTimeout(() => {
+                const nebula = this.createNebula(sector);
+                this.nebulae.push(nebula);
+            }, numPlanets * 200 + numAsteroidFields * 300 + numAliens * 100);
+        }
+        
+        // Mark sector as populated
+        sector.isPopulated = true;
+    }
+    
     clearWorld() {
-        // Remove all existing planets
-        for (const planet of this.planets) {
-            this.scene.remove(planet.mesh);
-            if (this.physicsSystem) {
-                this.physicsSystem.removeObject(planet);
+        // Remove all objects from the scene
+        this.planets.forEach(planet => {
+            if (planet.parent) {
+                planet.parent.remove(planet);
             }
-        }
+        });
         
-        // Remove all existing aliens
-        for (const alien of this.aliens) {
-            this.scene.remove(alien.mesh);
-            if (this.physicsSystem) {
-                this.physicsSystem.removeObject(alien);
+        this.aliens.forEach(alien => {
+            if (alien.parent) {
+                alien.parent.remove(alien);
             }
-        }
+        });
         
-        // Remove all existing asteroid fields
-        for (const field of this.asteroidFields) {
-            field.dispose();
-        }
+        this.asteroidFields.forEach(field => {
+            if (field.parent) {
+                field.parent.remove(field);
+            }
+        });
         
-        // Remove all existing nebulae
-        for (const nebula of this.nebulae) {
-            nebula.dispose();
-        }
+        this.nebulae.forEach(nebula => {
+            if (nebula.parent) {
+                nebula.parent.remove(nebula);
+            }
+        });
         
-        // Reset all arrays
+        // Clear arrays
         this.planets = [];
         this.aliens = [];
         this.asteroidFields = [];
@@ -82,171 +154,30 @@ export class GameWorld {
     }
     
     generateStarField() {
-        // Create a star field in the background
-        const starCount = 2000;
-        const starGeometry = new THREE.BufferGeometry();
-        const starPositions = new Float32Array(starCount * 3);
-        const starColors = new Float32Array(starCount * 3);
-        const starSizes = new Float32Array(starCount);
+        // Create a star field (simple particle system)
+        const geometry = new THREE.BufferGeometry();
+        const vertices = [];
         
-        for (let i = 0; i < starCount; i++) {
-            const i3 = i * 3;
-            
-            // Random position in a sphere
-            const radius = 2000 + Math.random() * 8000;
-            const theta = Math.random() * Math.PI * 2;
-            const phi = Math.acos(2 * Math.random() - 1);
-            
-            starPositions[i3] = radius * Math.sin(phi) * Math.cos(theta);
-            starPositions[i3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
-            starPositions[i3 + 2] = radius * Math.cos(phi);
-            
-            // Random star color (white, blue, yellow, red)
-            const colorChoice = Math.random();
-            if (colorChoice > 0.8) { // Blue stars
-                starColors[i3] = 0.7 + Math.random() * 0.3;
-                starColors[i3 + 1] = 0.7 + Math.random() * 0.3;
-                starColors[i3 + 2] = 1.0;
-            } else if (colorChoice > 0.6) { // Yellow stars
-                starColors[i3] = 1.0;
-                starColors[i3 + 1] = 0.9 + Math.random() * 0.1;
-                starColors[i3 + 2] = 0.5 + Math.random() * 0.3;
-            } else if (colorChoice > 0.4) { // Red stars
-                starColors[i3] = 1.0;
-                starColors[i3 + 1] = 0.3 + Math.random() * 0.5;
-                starColors[i3 + 2] = 0.3 + Math.random() * 0.2;
-            } else { // White stars
-                starColors[i3] = 0.9 + Math.random() * 0.1;
-                starColors[i3 + 1] = 0.9 + Math.random() * 0.1;
-                starColors[i3 + 2] = 0.9 + Math.random() * 0.1;
-            }
-            
-            // Random star size
-            starSizes[i] = 0.5 + Math.random() * 2.5;
-            
-            // Make some stars brighter
-            if (Math.random() > 0.97) {
-                starSizes[i] *= 2.5;
-                starColors[i3] = Math.min(1.0, starColors[i3] * 1.5);
-                starColors[i3 + 1] = Math.min(1.0, starColors[i3 + 1] * 1.5);
-                starColors[i3 + 2] = Math.min(1.0, starColors[i3 + 2] * 1.5);
-            }
+        // Create background stars
+        for (let i = 0; i < 10000; i++) {
+            const x = (Math.random() - 0.5) * 20000;
+            const y = (Math.random() - 0.5) * 20000;
+            const z = (Math.random() - 0.5) * 20000;
+            vertices.push(x, y, z);
         }
         
-        starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-        starGeometry.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
-        starGeometry.setAttribute('size', new THREE.BufferAttribute(starSizes, 1));
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
         
-        const starMaterial = new THREE.PointsMaterial({
-            size: 1,
-            vertexColors: true,
+        const material = new THREE.PointsMaterial({
+            color: 0xffffff,
+            size: 2,
             transparent: true,
             opacity: 0.8,
-            sizeAttenuation: true
+            sizeAttenuation: false
         });
         
-        // Create the star points
-        this.starField = new THREE.Points(starGeometry, starMaterial);
+        this.starField = new THREE.Points(geometry, material);
         this.scene.add(this.starField);
-    }
-    
-    generateSectors() {
-        // Define all sectors with their properties
-        const sectorDefinitions = [
-            {
-                name: "Alpha Quadrant",
-                position: new THREE.Vector3(0, 0, 0),
-                radius: 1000,
-                planetCount: 5,
-                asteroidFieldCount: 2,
-                nebulaCount: 1,
-                dangerLevel: 1, // Low danger (starter area)
-                description: "The Alpha Quadrant is a relatively safe region, ideal for new pilots."
-            },
-            {
-                name: "Beta Quadrant",
-                position: new THREE.Vector3(3000, 0, 0),
-                radius: 1500,
-                planetCount: 7,
-                asteroidFieldCount: 4,
-                nebulaCount: 2,
-                dangerLevel: 2, // Medium danger
-                description: "The Beta Quadrant has increased alien activity and valuable resources."
-            },
-            {
-                name: "Gamma Quadrant",
-                position: new THREE.Vector3(0, 3000, 0),
-                radius: 1800,
-                planetCount: 6,
-                asteroidFieldCount: 5,
-                nebulaCount: 3,
-                dangerLevel: 3, // High danger
-                description: "The Gamma Quadrant is known for its hostile forces and dense asteroid fields."
-            },
-            {
-                name: "Delta Quadrant",
-                position: new THREE.Vector3(-3000, -3000, 0),
-                radius: 2000,
-                planetCount: 8,
-                asteroidFieldCount: 6,
-                nebulaCount: 4,
-                dangerLevel: 4, // Very high danger
-                description: "The Delta Quadrant is extremely dangerous, but rich in rare resources."
-            }
-        ];
-        
-        // Create all sectors
-        for (const sectorDef of sectorDefinitions) {
-            const sector = this.createSector(sectorDef);
-            this.sectors.push(sector);
-        }
-    }
-    
-    createSector(sectorDef) {
-        console.log(`Creating sector: ${sectorDef.name}`);
-        
-        const sector = {
-            name: sectorDef.name,
-            position: sectorDef.position.clone(),
-            radius: sectorDef.radius,
-            description: sectorDef.description,
-            dangerLevel: sectorDef.dangerLevel,
-            planets: [],
-            asteroidFields: [],
-            nebulae: [],
-            aliens: []
-        };
-        
-        // Create planets
-        for (let i = 0; i < sectorDef.planetCount; i++) {
-            const planet = this.createPlanet(sector);
-            sector.planets.push(planet);
-            this.planets.push(planet);
-        }
-        
-        // Create asteroid fields
-        for (let i = 0; i < sectorDef.asteroidFieldCount; i++) {
-            const asteroidField = this.createAsteroidField(sector);
-            sector.asteroidFields.push(asteroidField);
-            this.asteroidFields.push(asteroidField);
-        }
-        
-        // Create nebulae
-        for (let i = 0; i < sectorDef.nebulaCount; i++) {
-            const nebula = this.createNebula(sector);
-            sector.nebulae.push(nebula);
-            this.nebulae.push(nebula);
-        }
-        
-        // Create enemies based on danger level
-        const enemyCount = Math.floor(sectorDef.dangerLevel * 2 + Math.random() * 3);
-        for (let i = 0; i < enemyCount; i++) {
-            const alien = this.createEnemy(sector);
-            sector.aliens.push(alien);
-            this.aliens.push(alien);
-        }
-        
-        return sector;
     }
     
     createPlanet(sector) {
@@ -450,13 +381,6 @@ export class GameWorld {
         return { name: "Deep Space", sector: null };
     }
     
-    setCurrentSector(sector) {
-        if (sector !== this.currentSector) {
-            this.currentSector = sector;
-            console.log(`Entered sector: ${sector.name}`);
-        }
-    }
-    
     update(delta) {
         // Update all planets
         for (const planet of this.planets) {
@@ -482,5 +406,10 @@ export class GameWorld {
     reset() {
         console.log("Resetting game world");
         this.initialize();
+    }
+    
+    // Method to help with sector transitioning
+    setCurrentSector(sector) {
+        this.setActiveSector(sector);
     }
 } 

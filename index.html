@@ -74,6 +74,8 @@
         #loading h1 {
             font-size: 32px;
             margin-bottom: 20px;
+            color: #0088ff;
+            text-shadow: 0 0 10px rgba(0, 136, 255, 0.5);
         }
         
         #loading-bar {
@@ -83,13 +85,23 @@
             border-radius: 10px;
             overflow: hidden;
             margin-bottom: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
         }
         
         #loading-progress {
             height: 100%;
             width: 0%;
             background-color: #0088ff;
+            background: linear-gradient(90deg, #0066cc 0%, #0088ff 50%, #00aaff 100%);
             transition: width 0.3s ease;
+            box-shadow: 0 0 8px rgba(0, 136, 255, 0.8);
+        }
+        
+        #loading p {
+            font-size: 16px;
+            color: #aaa;
+            margin-top: 10px;
+            font-family: 'Courier New', monospace;
         }
         
         .hidden {
