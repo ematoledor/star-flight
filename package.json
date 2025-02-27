@@ -2,15 +2,16 @@
   "name": "star-flight-simulator",
   "version": "1.0.0",
   "description": "A 3D space flight simulator with Minecraft-style graphics",
-  "main": "src/index.js",
+  "private": true,
   "type": "module",
   "engines": {
-    "node": ">=18.0.0"
+    "node": "18.x"
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "build": "npm install vite@4.5.0 --no-save && vite build",
+    "preview": "vite preview",
+    "vercel-build": "npm install vite@4.5.0 --no-save && vite build"
   },
   "keywords": [
     "three.js",
@@ -24,9 +25,9 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "three": "^0.157.0",
-    "cannon-es": "^0.20.0",
-    "howler": "^2.2.3",
+    "three": "0.157.0",
+    "cannon-es": "0.20.0",
+    "howler": "2.2.3",
     "vite": "4.5.0"
   },
   "devDependencies": {
