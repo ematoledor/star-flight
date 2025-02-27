@@ -77,161 +77,102 @@ class Game {
     
     init() {
         try {
-            console.log("Initializing game...");
-            
-            // Set initialized flag to false until complete
+            console.log("Game initialization started");
             this.initialized = false;
-            
-            // CRITICAL FIX: Record start time for initialization
             this.initStartTime = performance.now();
             
             // Enable debug mode for troubleshooting
             this.debugMode = true;
             console.log("Debug mode enabled");
             
-            // CRITICAL FIX: Add CSS reset to ensure canvas visibility
+            // Add CSS reset to ensure canvas is visible
             this.addCssReset();
             
-            // Setup loading screen
+            // CRITICAL FIX: Check if document is ready before proceeding
+            if (document.readyState === 'loading') {
+                console.log("Document still loading, waiting for DOMContentLoaded event");
+                
+                document.addEventListener('DOMContentLoaded', () => {
+                    console.log("DOMContentLoaded event fired, continuing initialization");
+                    this.continueInitialization();
+                });
+                
+                // Set a timeout in case the event doesn't fire
+                setTimeout(() => {
+                    if (!this.initialized) {
+                        console.warn("DOMContentLoaded timeout reached, forcing initialization");
+                        this.continueInitialization();
+                    }
+                }, 2000);
+            } else {
+                // Document already loaded, continue immediately
+                console.log("Document already loaded, continuing initialization");
+                this.continueInitialization();
+            }
+        } catch (error) {
+            console.error("Critical error during initialization:", error);
+            this.showErrorMessage("Failed to initialize game: " + error.message);
+            
+            // Try emergency initialization after a delay
+            setTimeout(() => {
+                this.emergencyInitialization();
+            }, 3000);
+        }
+    }
+    
+    // CRITICAL FIX: Split initialization into a separate method
+    continueInitialization() {
+        try {
+            // Set up loading screen
             this.setupLoadingScreenReferences();
             
-            // Initialize Three.js scene first
-            const threeInitialized = this.initThree();
-            if (!threeInitialized) {
-                throw new Error("Failed to initialize Three.js");
+            // Initialize Three.js
+            this.initThree();
+            
+            // Initialize physics system
+            this.initPhysics();
+            
+            // Initialize game world
+            this.initGameWorld();
+            
+            // Initialize input manager
+            this.initInputManager();
+            
+            // Initialize UI
+            this.initUI();
+            
+            // Start animation loop
+            if (!this.isRunning) {
+                this.isRunning = true;
+                this.animate();
+                console.log("Animation loop started");
             }
             
-            // CRITICAL FIX: Set up emergency initialization timeout
-            // This will force the game to initialize if the normal process takes too long
+            // Set timeout for emergency initialization if normal init takes too long
             this.initTimeoutId = setTimeout(() => {
-                this.emergencyInitialization();
-            }, 10000); // 10 seconds timeout
-            
-            // Add debug helpers if in debug mode
-            if (this.debugMode) {
-                this.addDebugHelpers();
-            }
-            
-            // Add space backdrop immediately for visual feedback
-            this.addDistantSpaceBackdrop();
-            
-            // Create loading manager with better progress tracking
-            this.loadingManager = new THREE.LoadingManager();
-            
-            // Track items to load
-            this.totalItemsToLoad = 0;
-            this.itemsLoaded = 0;
-            
-            this.loadingManager.onStart = (url, itemsLoaded, itemsTotal) => {
-                console.log(`Started loading: ${url}`);
-                this.totalItemsToLoad = Math.max(this.totalItemsToLoad, itemsTotal);
-            };
-            
-            this.loadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
-                this.itemsLoaded = itemsLoaded;
-                this.totalItemsToLoad = Math.max(this.totalItemsToLoad, itemsTotal);
-                
-                // Calculate progress percentage
-                const progress = (this.itemsLoaded / this.totalItemsToLoad) * 95; // Only go to 95%
-                this.updateLoadingProgress(progress);
-                console.log(`Loading progress: ${progress.toFixed(2)}% - ${url}`);
-            };
-            
-            this.loadingManager.onError = (url) => {
-                console.error(`Error loading: ${url}`);
-                // Continue loading despite errors
-            };
-            
-            this.loadingManager.onLoad = () => {
-                console.log("All assets loaded by LoadingManager");
-                
-                // CRITICAL FIX: Clear emergency initialization timeout
-                if (this.initTimeoutId) {
-                    clearTimeout(this.initTimeoutId);
-                    this.initTimeoutId = null;
-                }
-                
-                // Initialize remaining systems
-                Promise.all([
-                    this.initPhysics(),
-                    this.initGameWorld(),
-                    this.initInputManager(),
-                    this.initUI()
-                ]).then(() => {
-                    console.log("All game systems initialized");
-                    
-                    // Final loading step - create player spacecraft
-                    this.createPlayerSpacecraft();
-                    
-                    // Update to 100% and remove loading screen
-                    this.updateLoadingProgress(100);
-                    
-                    // Remove loading screens after initialization
-                    setTimeout(() => {
-                        this.forceRemoveAllLoadingScreens();
-                        this.initialized = true;
-                        console.log("Game fully initialized");
-                        
-                        // Force a render to ensure scene is visible
-                        this.renderScene();
-                        
-                        // Log scene hierarchy for debugging
-                        if (this.debugMode && this.scene) {
-                            console.log("Scene hierarchy:");
-                            this.logSceneHierarchy(this.scene);
-                        }
-                    }, 500);
-                }).catch(error => {
-                    console.error("Error during initialization:", error);
-                    this.showErrorMessage("Failed to initialize game systems: " + error.message);
-                    
-                    // Force remove loading screen even on error
-                    this.updateLoadingProgress(100);
-                    setTimeout(() => {
-                        this.forceRemoveAllLoadingScreens();
-                        this.initialized = true;
-                    }, 500);
-                });
-            };
-            
-            // Start game loop
-            this.isRunning = true;
-            this.lastTime = performance.now();
-        this.animate();
-        
-            // Welcome message
-            this.showNotification("Welcome, Explorer! You are docked at the mothership. Press L to launch and begin your journey.", 'info', 10000);
-            
-            // Instructions after a delay
-            setTimeout(() => {
-                this.showNotification("Use WASD to move, SPACE to boost, and SHIFT to brake. Press S to scan your surroundings.", 'info', 8000);
-            }, 12000);
-            
-            // Failsafe: Force completion after 20 seconds if loading gets stuck
-            setTimeout(() => {
                 if (!this.initialized) {
-                    console.warn("Loading timeout reached. Forcing completion...");
-                    this.updateLoadingProgress(100);
-                    this.forceRemoveAllLoadingScreens();
-                    this.initialized = true;
-                    
-                    // Force a render
-                    this.renderScene();
+                    console.warn("Initialization timeout reached, triggering emergency initialization");
+                    this.emergencyInitialization();
                 }
-            }, 20000);
+            }, 10000);
             
-            // Add keyboard shortcut for debug mode toggle
-            window.addEventListener('keydown', (event) => {
-                if (event.key === '`') { // Backtick key
-                    this.toggleDebugMode();
-                }
-            });
+            // Mark as initialized
+            this.initialized = true;
+            console.log(`Game initialization completed in ${((performance.now() - this.initStartTime) / 1000).toFixed(2)}s`);
             
-            return true;
+            // Schedule periodic canvas visibility checks
+            setInterval(() => this.ensureCanvasVisibility(), 5000);
+            
+            // Force an immediate visibility check
+            setTimeout(() => this.ensureCanvasVisibility(), 1000);
         } catch (error) {
-            console.error("Error initializing game:", error);
-            this.showErrorMessage("Failed to initialize game: " + error.message);
-            return false;
+            console.error("Error during continueInitialization:", error);
+            this.showErrorMessage("Failed to complete initialization: " + error.message);
+            
+            // Try emergency initialization
+            setTimeout(() => {
+                this.emergencyInitialization();
+            }, 2000);
         }
     }
     
@@ -2224,453 +2165,492 @@ class Game {
     // Add a new method to ensure canvas visibility
     ensureCanvasVisibility() {
         try {
-            // CRITICAL FIX: Check if document is available
-            if (!document) {
-                console.error("Document not available for canvas visibility check");
-                return;
+            console.log("Checking canvas visibility...");
+            
+            // CRITICAL FIX: Check if document is ready
+            if (document.readyState !== 'complete') {
+                console.warn(`Document not ready (state: ${document.readyState}), deferring canvas check`);
+                return false;
             }
             
-            // CRITICAL FIX: Check if we're in a valid browsing context
-            if (typeof window === 'undefined') {
-                console.error("Window object not available - possibly in a worker context");
-                return;
+            // CRITICAL FIX: Check if document and body exist
+            if (!document || !document.body) {
+                console.error("Document or body is null, cannot check canvas visibility");
+                return false;
             }
             
-            // Find all canvas elements
-            let canvases = [];
-            try {
-                canvases = document.querySelectorAll('canvas');
-            } catch (queryError) {
-                console.warn("Error querying for canvas elements:", queryError);
-            }
+            // Check if we have a canvas
+            const canvas = document.getElementById('game-canvas');
             
-            if (canvases.length === 0) {
-                console.warn("No canvas elements found - creating new canvas");
-                
-                // CRITICAL FIX: Check if document.body exists before creating canvas
-                if (!document.body) {
-                    console.error("Document body not available - cannot create canvas yet");
-                    
-                    // Schedule another attempt after the document might be ready
-                    setTimeout(() => {
-                        console.log("Retrying canvas visibility check after delay");
-                        this.ensureCanvasVisibility();
-                    }, 500);
-                    
-                    return;
-                }
-                
+            if (!canvas) {
+                console.warn("No canvas found with id 'game-canvas', recreating");
                 this.recreateCanvas();
-                return;
+                return false;
             }
             
-            // Check if our game canvas is visible
-            let gameCanvas = null;
-            try {
-                gameCanvas = document.getElementById('game-canvas');
-            } catch (idError) {
-                console.warn("Error getting game canvas by ID:", idError);
+            // Check if canvas is in the DOM
+            let isInDOM = false;
+            let node = canvas;
+            
+            while (node) {
+                if (node === document.body) {
+                    isInDOM = true;
+                    break;
+                }
+                node = node.parentNode;
             }
             
-            // If no game canvas, use the first canvas
-            if (!gameCanvas && canvases.length > 0) {
-                gameCanvas = canvases[0];
+            if (!isInDOM) {
+                console.warn("Canvas exists but is not in the DOM, reattaching");
                 try {
-                    gameCanvas.id = 'game-canvas';
-                    console.log("Set ID on existing canvas");
-                } catch (idSetError) {
-                    console.warn("Could not set ID on existing canvas:", idSetError);
+                    document.body.appendChild(canvas);
+                } catch (e) {
+                    console.error("Failed to reattach canvas:", e);
+                    this.recreateCanvas();
+                    return false;
                 }
             }
             
-            if (gameCanvas) {
-                // Check if canvas is visible
-                let isVisible = false;
-                try {
-                    const style = window.getComputedStyle(gameCanvas);
-                    isVisible = style.display !== 'none' && 
-                               style.visibility !== 'hidden' && 
-                               style.opacity !== '0' &&
-                               gameCanvas.width > 0 &&
-                               gameCanvas.height > 0;
-                } catch (styleError) {
-                    console.warn("Error checking canvas visibility:", styleError);
-                    // Assume not visible if we can't check
-                    isVisible = false;
-                }
+            // Check if canvas is visible (has width and height)
+            const rect = canvas.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) {
+                console.warn("Canvas has zero width or height, fixing styles");
                 
-                if (!isVisible) {
-                    console.warn("Canvas is not visible - fixing visibility");
-                    try {
-                        // Apply critical styles directly to ensure visibility
-                        gameCanvas.style.cssText = 'display:block !important; visibility:visible !important; opacity:1 !important; z-index:9999 !important; position:fixed !important; top:0 !important; left:0 !important; width:100vw !important; height:100vh !important; background-color:#000000 !important;';
-                        
-                        // Force a render
-                        if (this.renderer && this.scene && this.camera) {
-                            this.renderer.render(this.scene, this.camera);
-                            console.log("Forced render after fixing canvas visibility");
-                        }
-                    } catch (fixError) {
-                        console.error("Failed to fix canvas visibility:", fixError);
-                        // If we can't fix it, try recreating
-                        this.recreateCanvas();
-                    }
-                }
+                // Fix canvas styles
+                canvas.style.position = 'fixed';
+                canvas.style.top = '0';
+                canvas.style.left = '0';
+                canvas.style.width = '100%';
+                canvas.style.height = '100%';
+                canvas.style.zIndex = '1000';
+                canvas.style.display = 'block';
                 
-                // Check if canvas size is correct
-                let sizeCorrect = false;
-                try {
-                    sizeCorrect = (gameCanvas.width === window.innerWidth || gameCanvas.width === window.innerWidth * window.devicePixelRatio) && 
-                                 (gameCanvas.height === window.innerHeight || gameCanvas.height === window.innerHeight * window.devicePixelRatio);
-                } catch (sizeError) {
-                    console.warn("Error checking canvas size:", sizeError);
+                // Update renderer size
+                if (this.renderer) {
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
                 }
+            }
+            
+            // Check if canvas is properly styled
+            const computedStyle = window.getComputedStyle(canvas);
+            
+            if (computedStyle.display === 'none' || 
+                computedStyle.visibility === 'hidden' || 
+                computedStyle.opacity === '0') {
                 
-                if (!sizeCorrect) {
-                    console.warn("Canvas size mismatch - resizing");
-                    try {
-                        if (this.renderer) {
-                            this.renderer.setSize(window.innerWidth, window.innerHeight, false);
-                            console.log("Resized renderer to match window");
-                            
-                            // Force a render after resize
-                            if (this.scene && this.camera) {
-                                this.renderer.render(this.scene, this.camera);
-                            }
-                        }
-                    } catch (resizeError) {
-                        console.error("Failed to resize canvas:", resizeError);
-                    }
-                }
-            } else {
-                console.warn("Game canvas not found - recreating");
+                console.warn("Canvas is hidden by CSS, fixing styles");
+                
+                // Fix canvas styles
+                canvas.style.display = 'block';
+                canvas.style.visibility = 'visible';
+                canvas.style.opacity = '1';
+                canvas.style.zIndex = '1000'; // Ensure it's on top
+            }
+            
+            // Check if renderer is using this canvas
+            if (this.renderer && this.renderer.domElement !== canvas) {
+                console.warn("Renderer is not using the current canvas, recreating renderer");
                 this.recreateCanvas();
+                return false;
             }
+            
+            // Force a render to ensure content is visible
+            if (this.scene && this.camera && this.renderer) {
+                this.renderer.render(this.scene, this.camera);
+            }
+            
+            console.log("Canvas visibility check completed successfully");
+            return true;
         } catch (error) {
-            console.error("Error ensuring canvas visibility:", error);
+            console.error("Error in ensureCanvasVisibility:", error);
             
-            // CRITICAL FIX: Last resort - try to create a canvas with minimal dependencies
-            if (document && document.body) {
-                try {
-                    const lastResortCanvas = document.createElement('canvas');
-                    lastResortCanvas.width = 800;
-                    lastResortCanvas.height = 600;
-                    lastResortCanvas.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:10000;background:#000;';
-                    document.body.appendChild(lastResortCanvas);
-                    
-                    // Draw something to show it's working
-                    const ctx = lastResortCanvas.getContext('2d');
-                    if (ctx) {
-                        ctx.fillStyle = 'red';
-                        ctx.fillRect(lastResortCanvas.width/2 - 50, lastResortCanvas.height/2 - 50, 100, 100);
-                        ctx.fillStyle = 'white';
-                        ctx.font = '16px Arial';
-                        ctx.fillText('Last Resort Canvas', lastResortCanvas.width/2 - 80, lastResortCanvas.height/2 + 5);
-                    }
-                    
-                    console.log("Created last resort canvas");
-                } catch (lastResortError) {
-                    console.error("Even last resort canvas failed:", lastResortError);
-                }
-            }
+            // Try to recreate canvas as a last resort
+            setTimeout(() => this.recreateCanvas(), 500);
+            return false;
         }
     }
     
     // Add a method to recreate the canvas if it's missing
     recreateCanvas() {
         try {
-            // CRITICAL FIX: Check if document and document.body exist
-            if (!document || !document.body) {
-                console.error("Cannot recreate canvas: document.body is not available");
-                
-                // Schedule another attempt after a short delay
-                setTimeout(() => {
-                    if (document && document.body) {
-                        console.log("Document body now available, retrying canvas creation");
-                        this.recreateCanvas();
-                    }
-                }, 500);
-                
-                return;
+            console.log("Attempting to recreate canvas...");
+            
+            // CRITICAL FIX: Check if document is fully loaded
+            if (document.readyState !== 'complete') {
+                console.warn(`Document not ready yet (state: ${document.readyState}), scheduling canvas recreation`);
+                setTimeout(() => this.recreateCanvas(), 500);
+                return false;
             }
             
-            // Create a new canvas
+            // CRITICAL FIX: Ensure document and body exist
+            if (!document || !document.body) {
+                console.error("Document or body is null, cannot create canvas");
+                
+                // Schedule a retry with exponential backoff
+                const retryDelay = this.canvasRetryCount ? Math.min(2000, 100 * Math.pow(2, this.canvasRetryCount)) : 100;
+                this.canvasRetryCount = (this.canvasRetryCount || 0) + 1;
+                
+                console.log(`Scheduling canvas recreation retry #${this.canvasRetryCount} in ${retryDelay}ms`);
+                setTimeout(() => this.recreateCanvas(), retryDelay);
+                return false;
+            }
+            
+            // Reset retry count on successful attempt
+            this.canvasRetryCount = 0;
+            
+            // CRITICAL FIX: Check if we already have a canvas with our ID
+            const existingCanvas = document.getElementById('game-canvas');
+            if (existingCanvas) {
+                console.log("Found existing canvas, removing it first");
+                try {
+                    existingCanvas.parentNode.removeChild(existingCanvas);
+                } catch (e) {
+                    console.warn("Error removing existing canvas:", e);
+                    // Continue anyway
+                }
+            }
+            
+            // Create a new canvas element
             const canvas = document.createElement('canvas');
             canvas.id = 'game-canvas';
             
-            // Style the canvas
+            // CRITICAL FIX: Apply styles directly to ensure visibility
             canvas.style.position = 'fixed';
             canvas.style.top = '0';
             canvas.style.left = '0';
-            canvas.style.width = '100vw';
-            canvas.style.height = '100vh';
-            canvas.style.zIndex = '9999';
+            canvas.style.width = '100%';
+            canvas.style.height = '100%';
+            canvas.style.zIndex = '1000';
             canvas.style.backgroundColor = '#000000';
+            canvas.style.display = 'block';
             
-            // CRITICAL FIX: Check if any existing canvas with the same ID exists and remove it
-            const existingCanvas = document.getElementById('game-canvas');
-            if (existingCanvas) {
-                try {
-                    existingCanvas.parentNode.removeChild(existingCanvas);
-                    console.log("Removed existing canvas");
-                } catch (e) {
-                    console.warn("Could not remove existing canvas:", e);
-                }
+            // CRITICAL FIX: Ensure body exists again right before appending
+            if (!document.body) {
+                console.error("Document body disappeared, cannot append canvas");
+                setTimeout(() => this.recreateCanvas(), 500);
+                return false;
             }
             
-            // CRITICAL FIX: More robust way to add to document
+            // Append the canvas to the document body
             try {
                 document.body.appendChild(canvas);
-                console.log("Canvas successfully appended to document.body");
-            } catch (appendError) {
-                console.error("Error appending to document.body:", appendError);
-                
-                // Try alternative methods to add the canvas
-                try {
-                    // Try to add to document directly if body fails
-                    document.documentElement.appendChild(canvas);
-                    console.log("Canvas appended to document.documentElement as fallback");
-                } catch (alternativeError) {
-                    console.error("All canvas append methods failed:", alternativeError);
-                    return; // Exit if we can't add the canvas
-                }
+                console.log("Canvas successfully appended to document body");
+            } catch (e) {
+                console.error("Error appending canvas to document body:", e);
+                setTimeout(() => this.recreateCanvas(), 500);
+                return false;
             }
             
-            // Recreate renderer if needed
-            if (!this.renderer || this.renderer.domElement !== canvas) {
-                console.log("Recreating WebGL renderer");
-                
-                // CRITICAL FIX: Dispose of old renderer if it exists
+            // Create a new renderer using this canvas
+            try {
                 if (this.renderer) {
-                    try {
-                        this.renderer.dispose();
-                        console.log("Disposed of old renderer");
-                    } catch (e) {
-                        console.warn("Could not dispose of old renderer:", e);
-                    }
+                    // Dispose of the old renderer to prevent memory leaks
+                    this.renderer.dispose();
                 }
                 
-                // Create new renderer with robust error handling
-                try {
-                    this.renderer = new THREE.WebGLRenderer({
-                        canvas: canvas,
-                        antialias: true,
-                        alpha: false,
-                        powerPreference: 'high-performance'
-                    });
-                    this.renderer.setSize(window.innerWidth, window.innerHeight, false);
-                    
-                    // Force a render
-                    if (this.scene && this.camera) {
-                        this.renderer.render(this.scene, this.camera);
-                        console.log("Initial render completed with new renderer");
-                    }
-                } catch (rendererError) {
-                    console.error("Failed to create WebGL renderer:", rendererError);
-                    
-                    // Try with minimal settings as fallback
-                    try {
-                        console.log("Trying fallback renderer with minimal settings");
-                        this.renderer = new THREE.WebGLRenderer({
-                            canvas: canvas,
-                            antialias: false,
-                            alpha: false,
-                            precision: 'lowp'
-                        });
-                        this.renderer.setSize(window.innerWidth, window.innerHeight, false);
-                    } catch (fallbackError) {
-                        console.error("Fallback renderer also failed:", fallbackError);
-                    }
+                this.renderer = new THREE.WebGLRenderer({
+                    canvas: canvas,
+                    antialias: window.innerWidth > 1200,
+                    alpha: false,
+                    precision: 'mediump',
+                    powerPreference: 'high-performance',
+                    stencil: false
+                });
+                
+                // Configure renderer
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+                this.renderer.shadowMap.enabled = true;
+                
+                console.log("New WebGLRenderer created successfully");
+                
+                // Force a render to ensure everything is visible
+                if (this.scene && this.camera) {
+                    this.renderer.render(this.scene, this.camera);
+                    console.log("Initial render completed with new renderer");
                 }
+                
+                return true;
+            } catch (e) {
+                console.error("Error creating WebGLRenderer:", e);
+                return false;
             }
         } catch (error) {
-            console.error("Error recreating canvas:", error);
-            
-            // CRITICAL FIX: Add a last-resort direct DOM manipulation
-            try {
-                const emergencyCanvas = document.createElement('canvas');
-                emergencyCanvas.id = 'emergency-canvas';
-                emergencyCanvas.width = window.innerWidth;
-                emergencyCanvas.height = window.innerHeight;
-                emergencyCanvas.style = 'position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:10000;background:#000;';
-                
-                // Try multiple insertion methods
-                if (document.body) document.body.appendChild(emergencyCanvas);
-                else if (document.documentElement) document.documentElement.appendChild(emergencyCanvas);
-                else if (document.querySelector('div')) document.querySelector('div').appendChild(emergencyCanvas);
-                
-                // Draw something on the canvas to show it's working
-                const ctx = emergencyCanvas.getContext('2d');
-                if (ctx) {
-                    ctx.fillStyle = 'red';
-                    ctx.beginPath();
-                    ctx.arc(emergencyCanvas.width/2, emergencyCanvas.height/2, 50, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.fillStyle = 'white';
-                    ctx.font = '20px Arial';
-                    ctx.fillText('Emergency Canvas', emergencyCanvas.width/2 - 100, emergencyCanvas.height/2 + 5);
-                }
-                
-                console.log("Created emergency canvas as last resort");
-            } catch (emergencyError) {
-                console.error("Even emergency canvas creation failed:", emergencyError);
-            }
+            console.error("Critical error in recreateCanvas:", error);
+            return false;
         }
     }
 
     // Add this new method after init()
     emergencyInitialization() {
-        console.warn("Emergency initialization triggered after timeout");
-        
-        if (this.initialized || this.emergencyInitialized) {
-            console.log("Game already initialized, skipping emergency initialization");
-            return;
-        }
-        
-        this.emergencyInitialized = true;
-        
         try {
-            // Force remove all loading screens
+            console.warn("EMERGENCY INITIALIZATION ACTIVATED");
+            
+            // Prevent multiple emergency initializations
+            if (this.emergencyInitialized) {
+                console.log("Emergency initialization already performed, skipping");
+                return;
+            }
+            
+            // CRITICAL FIX: Check if document is ready
+            if (document.readyState === 'loading') {
+                console.log("Document still loading during emergency init, waiting for DOMContentLoaded");
+                
+                document.addEventListener('DOMContentLoaded', () => {
+                    console.log("DOMContentLoaded fired during emergency init, continuing");
+                    this.performEmergencyInitialization();
+                });
+                
+                // Set a timeout in case the event doesn't fire
+                setTimeout(() => {
+                    if (!this.emergencyInitialized) {
+                        console.warn("DOMContentLoaded timeout in emergency mode, forcing initialization");
+                        this.performEmergencyInitialization();
+                    }
+                }, 1000);
+            } else {
+                // Document already loaded, continue immediately
+                console.log("Document already loaded during emergency init, continuing");
+                this.performEmergencyInitialization();
+            }
+        } catch (error) {
+            console.error("Critical error during emergency initialization:", error);
+            
+            // Last resort - try to show something on screen
+            this.lastResortEmergencyDisplay();
+        }
+    }
+    
+    // CRITICAL FIX: Split emergency initialization into a separate method
+    performEmergencyInitialization() {
+        try {
+            console.log("Performing emergency initialization");
+            this.emergencyInitialized = true;
+            
+            // Force remove any loading screens
             this.forceRemoveAllLoadingScreens();
             
-            // Ensure we have a scene and camera
+            // Create a new scene if it doesn't exist
             if (!this.scene) {
-                console.warn("Creating emergency scene");
+                console.log("Creating emergency scene");
                 this.scene = new THREE.Scene();
                 this.scene.background = new THREE.Color(0x000000);
             }
             
+            // Create a camera if it doesn't exist
             if (!this.camera) {
-                console.warn("Creating emergency camera");
-                this.camera = new THREE.PerspectiveCamera(
-                    75,
-                    window.innerWidth / window.innerHeight,
-                    0.1,
-                    10000
-                );
-                this.camera.position.set(0, 0, 50);
+                console.log("Creating emergency camera");
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
+                this.camera.position.set(0, 10, 30);
+                this.camera.lookAt(0, 0, 0);
             }
             
-            // CRITICAL FIX: Ensure canvas exists and is visible
-            this.ensureCanvasVisibility();
+            // Create a new canvas and renderer
+            const canvas = document.createElement('canvas');
+            canvas.id = 'emergency-canvas';
             
-            // Ensure we have a renderer
-            if (!this.renderer) {
-                console.warn("Creating emergency renderer");
-                const canvas = document.getElementById('game-canvas') || document.createElement('canvas');
-                if (!canvas.parentNode) {
-                    canvas.id = 'game-canvas';
-                    canvas.style.position = 'fixed';
-                    canvas.style.top = '0';
-                    canvas.style.left = '0';
-                    canvas.style.width = '100vw';
-                    canvas.style.height = '100vh';
-                    canvas.style.zIndex = '9999';
-                    document.body.appendChild(canvas);
+            // Apply styles directly to ensure visibility
+            canvas.style.position = 'fixed';
+            canvas.style.top = '0';
+            canvas.style.left = '0';
+            canvas.style.width = '100%';
+            canvas.style.height = '100%';
+            canvas.style.zIndex = '2000'; // Higher than regular canvas
+            canvas.style.backgroundColor = '#000000';
+            canvas.style.display = 'block';
+            
+            // Append to document body if it exists
+            if (document.body) {
+                document.body.appendChild(canvas);
+                console.log("Emergency canvas appended to document body");
+            } else if (document.documentElement) {
+                document.documentElement.appendChild(canvas);
+                console.log("Emergency canvas appended to document element (fallback)");
+            } else {
+                console.error("Cannot append emergency canvas - no valid parent element");
+            }
+            
+            // Create a new renderer
+            try {
+                if (this.renderer) {
+                    this.renderer.dispose();
                 }
                 
-                // Create a simple WebGL renderer with minimal settings
                 this.renderer = new THREE.WebGLRenderer({
                     canvas: canvas,
                     antialias: false, // Disable for performance
                     alpha: false,
                     precision: 'lowp', // Use low precision for performance
-                    powerPreference: 'high-performance'
+                    powerPreference: 'default'
                 });
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
+                
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.setPixelRatio(1); // Use lowest pixel ratio for performance
+                console.log("Emergency renderer created");
+            } catch (rendererError) {
+                console.error("Failed to create WebGL renderer in emergency mode:", rendererError);
+                
+                // Try to show a message on the canvas using 2D context
+                try {
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        ctx.fillStyle = 'black';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.fillStyle = 'red';
+                        ctx.font = '24px Arial';
+                        ctx.fillText('EMERGENCY MODE - WebGL not available', 20, canvas.height / 2);
+                    }
+                } catch (ctxError) {
+                    console.error("Failed to create 2D context:", ctxError);
+                }
+            }
+            
+            // Add a red sphere to show something is working
+            const geometry = new THREE.SphereGeometry(5, 16, 16);
+            const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const sphere = new THREE.Mesh(geometry, material);
+            this.scene.add(sphere);
+            
+            // Add a light
+            const light = new THREE.DirectionalLight(0xffffff, 1);
+            light.position.set(0, 1, 1);
+            this.scene.add(light);
+            
+            // Add a message to the scene
+            this.addEmergencyMessage("EMERGENCY MODE ACTIVATED", "Game is running in fallback mode. Please refresh the page.");
+            
+            // Start a simple animation loop if not already running
+            if (!this.isRunning) {
+                this.isRunning = true;
+                
+                const emergencyRender = () => {
+                    if (!this.isRunning) return;
+                    
+                    // Rotate the sphere
+                    if (sphere) {
+                        sphere.rotation.x += 0.01;
+                        sphere.rotation.y += 0.01;
+                    }
+                    
+                    // Render the scene
+                    if (this.renderer && this.scene && this.camera) {
+                        try {
+                            this.renderer.render(this.scene, this.camera);
+                        } catch (renderError) {
+                            console.error("Error in emergency render:", renderError);
+                        }
+                    }
+                    
+                    requestAnimationFrame(emergencyRender);
+                };
+                
+                emergencyRender();
+                console.log("Emergency render loop started");
+            }
+            
+            // Mark as initialized
+            this.initialized = true;
+            
+            console.log("Emergency initialization completed");
+        } catch (error) {
+            console.error("Critical error during performEmergencyInitialization:", error);
+            this.lastResortEmergencyDisplay();
+        }
     }
     
-            // CRITICAL FIX: Clear the scene and add simple objects
-            // This ensures we have a clean slate
-            while (this.scene.children.length > 0) {
-                this.scene.remove(this.scene.children[0]);
+    // CRITICAL FIX: Add a last resort method for emergency display
+    lastResortEmergencyDisplay() {
+        try {
+            console.warn("Attempting last resort emergency display");
+            
+            // Check if document is available
+            if (!document || !document.body) {
+                console.error("Document or body not available for last resort display");
+                return;
             }
             
-            // Add ambient light
-            const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
-            ambientLight.name = "EmergencyAmbientLight";
-            this.scene.add(ambientLight);
+            // Create a div element with a message
+            const emergencyDiv = document.createElement('div');
+            emergencyDiv.style.position = 'fixed';
+            emergencyDiv.style.top = '0';
+            emergencyDiv.style.left = '0';
+            emergencyDiv.style.width = '100%';
+            emergencyDiv.style.height = '100%';
+            emergencyDiv.style.backgroundColor = '#000000';
+            emergencyDiv.style.color = '#ff0000';
+            emergencyDiv.style.fontFamily = 'Arial, sans-serif';
+            emergencyDiv.style.fontSize = '24px';
+            emergencyDiv.style.textAlign = 'center';
+            emergencyDiv.style.paddingTop = '40vh';
+            emergencyDiv.style.zIndex = '9999';
             
-            // Add a visible object to the scene - use a wireframe cube for performance
-            const geometry = new THREE.BoxGeometry(30, 30, 30);
-            const material = new THREE.MeshBasicMaterial({ 
-                color: 0xff0000,
-                wireframe: true
-            });
-            const cube = new THREE.Mesh(geometry, material);
-            cube.name = "EmergencyCube";
-            this.scene.add(cube);
+            emergencyDiv.innerHTML = `
+                <div>CRITICAL ERROR</div>
+                <div style="font-size: 18px; margin-top: 20px;">
+                    The game encountered a critical error and cannot continue.<br>
+                    Please refresh the page or try again later.
+                </div>
+            `;
             
-            // Add a rotating animation to make it obvious the scene is working
-            const animateCube = () => {
-                if (!cube) return;
-                
-                cube.rotation.x += 0.01;
-                cube.rotation.y += 0.01;
-                
-                // Request next frame
-                requestAnimationFrame(animateCube);
-            };
-            
-            // Start cube animation
-            animateCube();
-            
-            // Add text to indicate emergency mode
-            const message = document.createElement('div');
-            message.style.position = 'fixed';
-            message.style.top = '20px';
-            message.style.left = '20px';
-            message.style.color = 'white';
-            message.style.fontFamily = 'Arial, sans-serif';
-            message.style.fontSize = '16px';
-            message.style.zIndex = '10000';
-            message.style.backgroundColor = 'rgba(0,0,0,0.7)';
-            message.style.padding = '10px';
-            message.style.borderRadius = '5px';
-            message.textContent = 'Emergency Mode: Game initialized with minimal features. Try refreshing the page.';
-            document.body.appendChild(message);
-            
-            // CRITICAL FIX: Force multiple renders to ensure visibility
-        this.renderer.render(this.scene, this.camera);
-            
-            // Schedule additional renders
-            setTimeout(() => this.renderer.render(this.scene, this.camera), 100);
-            setTimeout(() => this.renderer.render(this.scene, this.camera), 500);
-            setTimeout(() => this.renderer.render(this.scene, this.camera), 1000);
-            
-            // Set up a continuous rendering loop specific to emergency mode
-            const emergencyRender = () => {
-                if (!this.renderer || !this.scene || !this.camera) return;
-                
-                // Rotate camera around center
-                if (this.camera) {
-                    const time = Date.now() * 0.001;
-                    this.camera.position.x = Math.sin(time) * 50;
-                    this.camera.position.z = Math.cos(time) * 50;
-                    this.camera.lookAt(0, 0, 0);
-                }
-                
-                this.renderer.render(this.scene, this.camera);
-                requestAnimationFrame(emergencyRender);
-            };
-            
-            // Start emergency render loop
-            emergencyRender();
-            
-            // Set as initialized and start animation loop
-            this.initialized = true;
-            this.isRunning = true;
-            
-            // Start animation loop if not already running
-            if (!this.animationFrameId) {
-                this.lastTime = performance.now();
-                this.animate();
-            }
-            
-            console.log("Emergency initialization complete");
+            document.body.appendChild(emergencyDiv);
+            console.log("Last resort emergency display created");
         } catch (error) {
-            console.error("Failed emergency initialization:", error);
-            this.showErrorMessage("Critical error: " + error.message);
+            console.error("Even last resort display failed:", error);
+        }
+    }
+    
+    // Add a method to display emergency messages in the 3D scene
+    addEmergencyMessage(title, message) {
+        try {
+            // Create a canvas for the message
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 256;
+            const context = canvas.getContext('2d');
+            
+            // Fill background
+            context.fillStyle = '#000000';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Add border
+            context.strokeStyle = '#ff0000';
+            context.lineWidth = 8;
+            context.strokeRect(8, 8, canvas.width - 16, canvas.height - 16);
+            
+            // Add title
+            context.fillStyle = '#ff0000';
+            context.font = 'bold 36px Arial';
+            context.textAlign = 'center';
+            context.fillText(title, canvas.width / 2, 60);
+            
+            // Add message
+            context.fillStyle = '#ffffff';
+            context.font = '24px Arial';
+            context.fillText(message, canvas.width / 2, 120);
+            context.fillText("Please refresh the page.", canvas.width / 2, 160);
+            
+            // Create texture from canvas
+            const texture = new THREE.CanvasTexture(canvas);
+            
+            // Create a plane to display the message
+            const geometry = new THREE.PlaneGeometry(20, 10);
+            const material = new THREE.MeshBasicMaterial({ 
+                map: texture, 
+                transparent: true,
+                side: THREE.DoubleSide
+            });
+            
+            const plane = new THREE.Mesh(geometry, material);
+            plane.position.set(0, 10, -10);
+            
+            // Add to scene
+            if (this.scene) {
+                this.scene.add(plane);
+                console.log("Emergency message added to scene");
+            }
+        } catch (error) {
+            console.error("Error adding emergency message:", error);
         }
     }
 }
