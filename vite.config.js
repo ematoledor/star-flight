@@ -7,6 +7,8 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     sourcemap: true,
+    assetsDir: 'assets',
+    minify: true
   },
   resolve: {
     alias: {
@@ -15,6 +17,7 @@ export default defineConfig({
   },
   server: {
     host: true,
-    open: true
+    open: true,
+    port: 3000
   }
 }); 
