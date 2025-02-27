@@ -1432,4 +1432,13 @@ export class UIManager {
         }
         console.log("Game resumed");
     }
+    
+    // Method to set spacecraft reference after initialization
+    setSpacecraft(spacecraft) {
+        if (spacecraft) {
+            this.spacecraft = spacecraft;
+            console.log("UIManager: Spacecraft reference updated");
+            this.updateHUD(); // Update HUD with new spacecraft data
+        }
+    }
 } 

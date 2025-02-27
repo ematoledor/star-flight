@@ -590,52 +590,30 @@ class Game {
     showNotification(message, type = 'info', duration = 5000) {
         console.log(`Notification: ${message} (${type})`);
         
-        // Create notification element if it doesn't exist
-        let notification = document.getElementById('game-notification');
-        if (!notification) {
-            notification = document.createElement('div');
-            notification.id = 'game-notification';
-            notification.style.position = 'absolute';
-            notification.style.bottom = '20px';
-            notification.style.left = '50%';
-            notification.style.transform = 'translateX(-50%)';
-            notification.style.padding = '10px 20px';
-            notification.style.borderRadius = '5px';
-            notification.style.fontFamily = 'Arial, sans-serif';
-            notification.style.zIndex = '1000';
-            notification.style.transition = 'opacity 0.3s ease';
-            document.body.appendChild(notification);
+        // Get notification area
+        const notificationArea = document.getElementById('notification-area');
+        if (!notificationArea) {
+            console.warn('Notification area not found');
+            return;
         }
         
-        // Set notification style based on type
-        switch (type) {
-            case 'success':
-                notification.style.backgroundColor = 'rgba(0, 128, 0, 0.8)';
-                notification.style.color = 'white';
-                break;
-            case 'warning':
-                notification.style.backgroundColor = 'rgba(255, 165, 0, 0.8)';
-                notification.style.color = 'black';
-                break;
-            case 'danger':
-                notification.style.backgroundColor = 'rgba(255, 0, 0, 0.8)';
-                notification.style.color = 'white';
-                break;
-            case 'info':
-            default:
-                notification.style.backgroundColor = 'rgba(0, 0, 128, 0.8)';
-                notification.style.color = 'white';
-                break;
-        }
-        
-        // Set message and show notification
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
         notification.textContent = message;
-        notification.style.opacity = '1';
         
-        // Hide notification after duration
+        // Add to notification area
+        notificationArea.appendChild(notification);
+        
+        // Remove after duration
         if (duration > 0) {
             setTimeout(() => {
                 notification.style.opacity = '0';
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 300);
             }, duration);
         }
     }
@@ -1259,20 +1237,17 @@ class Game {
     
     update(time, delta) {
         // Skip updates if game is not initialized
-        if (!this.initialized) {
-            return;
+        if (!this.initialized && time > 10000) {
+            // Force initialization after 10 seconds if not already initialized
+            console.warn("Game not initialized after 10 seconds, forcing initialization");
+            this.initialized = true;
+            this.forceRemoveAllLoadingScreens();
         }
         
-        // Debug logging every 60 frames
-        if (this.frameCount % 60 === 0) {
-            console.log(`Camera position: ${this.camera.position.x.toFixed(2)}, ${this.camera.position.y.toFixed(2)}, ${this.camera.position.z.toFixed(2)}`);
-            console.log(`Scene objects: ${this.scene.children.length}`);
-            if (this.spacecraft) {
-                console.log(`Spacecraft position: ${this.spacecraft.position.x.toFixed(2)}, ${this.spacecraft.position.y.toFixed(2)}, ${this.spacecraft.position.z.toFixed(2)}`);
-                console.log(`Spacecraft visible: ${this.spacecraft.visible}`);
-            }
+        if (this.spacecraft) {
+            console.log(`Spacecraft position: ${this.spacecraft.position.x.toFixed(2)}, ${this.spacecraft.position.y.toFixed(2)}, ${this.spacecraft.position.z.toFixed(2)}`);
+            console.log(`Spacecraft visible: ${this.spacecraft.visible}`);
         }
-        this.frameCount = (this.frameCount || 0) + 1;
         
         // Update physics
         if (this.physicsSystem) {
@@ -1322,9 +1297,15 @@ class Game {
         
         // Render scene
         if (this.renderer && this.scene && this.camera) {
+            console.log("Rendering scene...");
+            console.log(`Camera position: ${this.camera.position.x.toFixed(2)}, ${this.camera.position.y.toFixed(2)}, ${this.camera.position.z.toFixed(2)}`);
+            console.log(`Scene children count: ${this.scene.children.length}`);
             this.renderer.render(this.scene, this.camera);
         } else {
             console.warn("Cannot render: missing renderer, scene, or camera");
+            if (!this.renderer) console.warn("Renderer is missing");
+            if (!this.scene) console.warn("Scene is missing");
+            if (!this.camera) console.warn("Camera is missing");
         }
     }
 
@@ -1428,16 +1409,64 @@ class Game {
             // Create game world
             this.gameWorld = new GameWorld(this.scene, this.loadingManager, this.physicsSystem);
             
-            // Get mothership reference
+            // Check if there are any motherships in the gameWorld
             if (this.gameWorld.motherships && this.gameWorld.motherships.length > 0) {
                 this.mothership = this.gameWorld.motherships[0];
                 console.log("Mothership reference obtained");
             }
             
+            // Create the player's spacecraft
+            this.createPlayerSpacecraft();
+            
             console.log("Game world initialized");
             return true;
         } catch (error) {
-            console.error("Error initializing game world:", error);
+            console.error("Failed to initialize game world:", error);
+            return false;
+        }
+    }
+
+    // Create the player's spacecraft
+    createPlayerSpacecraft() {
+        try {
+            console.log("Creating player spacecraft...");
+            
+            // Get a good starting position near the mothership
+            let startPosition = new THREE.Vector3(0, 0, 0);
+            if (this.mothership) {
+                // Position slightly in front of the mothership
+                startPosition = this.mothership.position.clone();
+                startPosition.z += 200; // Position in front of the mothership
+            }
+            
+            // Create the spacecraft
+            this.spacecraft = new Spacecraft({
+                scene: this.scene,
+                camera: this.camera,
+                physicsSystem: this.physicsSystem,
+                position: startPosition
+            });
+            
+            // Add to physics system
+            if (this.physicsSystem) {
+                this.physicsSystem.addObject(this.spacecraft);
+            }
+            
+            // Set up input handler with spacecraft reference
+            if (this.inputManager) {
+                this.inputManager.setSpacecraft(this.spacecraft);
+            }
+            
+            // Set up UI manager with spacecraft reference
+            if (this.uiManager) {
+                this.uiManager.setSpacecraft(this.spacecraft);
+            }
+            
+            console.log("Player spacecraft created at position:", startPosition);
+            return true;
+        } catch (error) {
+            console.error("Failed to create player spacecraft:", error);
+            this.showErrorMessage("Failed to create player spacecraft. Please reload the game.");
             return false;
         }
     }

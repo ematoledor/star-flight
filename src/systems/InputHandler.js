@@ -17,6 +17,14 @@ export class InputHandler {
         this.initPointerLock();
     }
     
+    // Method to set spacecraft reference after initialization
+    setSpacecraft(spacecraft) {
+        if (spacecraft) {
+            this.spacecraft = spacecraft;
+            console.log("InputHandler: Spacecraft reference updated");
+        }
+    }
+    
     initKeyboardListeners() {
         // Key down event
         document.addEventListener('keydown', (event) => {
