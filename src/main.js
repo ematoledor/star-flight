@@ -428,60 +428,94 @@ class Game {
     }
     
     animate() {
+        // Schedule next frame - must run even if there are errors
         requestAnimationFrame(this.animate.bind(this));
         
         try {
             const delta = this.clock.getDelta();
             
             // Only update if UI is not paused - use optional chaining to avoid errors
-            const isPaused = this.uiManager?.isPaused?.() || false;
+            let isPaused = false;
+            try {
+                isPaused = this.uiManager?.isPaused?.() || false;
+            } catch (pauseError) {
+                console.warn('Error checking pause state:', pauseError);
+            }
             
             if (!isPaused) {
                 // Update game systems in the correct order
-                
-                // 1. Update physics
-                if (this.physicsSystem) {
-                    this.physicsSystem.update(delta);
-                }
-                
-                // 2. Update LOD manager
-                if (this.lodManager) {
-                    this.lodManager.update(delta);
-                }
-                
-                // 3. Update spacecraft
-                if (this.spacecraft) {
-                    this.spacecraft.update(delta);
-                }
-                
-                // 4. Update combat system
-                if (this.combatSystem) {
-                    this.combatSystem.update(delta);
-                }
-                
-                // 5. Update game world
-                if (this.gameWorld) {
-                    this.gameWorld.update(delta);
+                try {
+                    // 1. Update physics
+                    if (this.physicsSystem) {
+                        this.physicsSystem.update(delta);
+                    }
+                    
+                    // 2. Update LOD manager
+                    if (this.lodManager) {
+                        this.lodManager.update(delta);
+                    }
+                    
+                    // 3. Update spacecraft
+                    if (this.spacecraft) {
+                        this.spacecraft.update(delta);
+                    }
+                    
+                    // 4. Update combat system
+                    if (this.combatSystem) {
+                        this.combatSystem.update(delta);
+                    }
+                    
+                    // 5. Update game world
+                    if (this.gameWorld) {
+                        this.gameWorld.update(delta);
+                    }
+                } catch (updateError) {
+                    console.error('Error in game update loop:', updateError);
                 }
             }
             
-            // Always update UI
-            if (this.uiManager) {
-                // Get current sector for UI
-                const sectorInfo = this.gameWorld ? 
-                    this.gameWorld.getSectorAt(this.spacecraft.position) : 
-                    { name: 'unknown', sector: null };
-                    
-                this.uiManager.update(delta, sectorInfo.sector);
+            // Always update UI - with extra defensive coding
+            try {
+                if (this.uiManager) {
+                    try {
+                        // Get current sector for UI - with error checks
+                        let sectorInfo = { name: 'unknown', sector: null };
+                        
+                        if (this.gameWorld && this.spacecraft && this.spacecraft.position) {
+                            try {
+                                sectorInfo = this.gameWorld.getSectorAt(this.spacecraft.position) || sectorInfo;
+                            } catch (sectorError) {
+                                console.warn('Error getting sector information:', sectorError);
+                            }
+                        }
+                        
+                        // Make sure we don't pass undefined to the UI update
+                        const safeInfo = {
+                            name: sectorInfo.name || 'unknown',
+                            sector: sectorInfo.sector || null
+                        };
+                        
+                        // Call UI update with safe sector info
+                        this.uiManager.update(delta, safeInfo);
+                    } catch (uiError) {
+                        console.error('Error in UI manager update:', uiError);
+                    }
+                }
+            } catch (outerUiError) {
+                console.error('Critical error in UI update section:', outerUiError);
             }
             
             // Render the scene
-            if (this.scene && this.camera && this.renderer) {
-                this.renderer.render(this.scene, this.camera);
+            try {
+                if (this.scene && this.camera && this.renderer) {
+                    this.renderer.render(this.scene, this.camera);
+                }
+            } catch (renderError) {
+                console.error('Error in scene rendering:', renderError);
             }
-        } catch (error) {
-            console.error("Error in animation loop:", error);
-            // Don't rethrow to keep the animation loop going
+        } catch (animateError) {
+            console.error('Critical error in animation loop:', animateError);
+            // Never stop the animation loop - continue to next frame regardless
         }
     }
 }

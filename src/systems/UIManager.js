@@ -835,57 +835,70 @@ export class UIManager {
                 this.hudElements.sectorDifficulty.textContent = "★".repeat(sectorDifficulty);
             }
             
-            // Count objects in this sector
+            // Count objects in this sector - ULTRA SIMPLE version that avoids filter()
             if (this.gameWorld) {
-                // Check the center and radius are valid
-                const center = (currentSector.sector && currentSector.sector.position) ? 
+                const sectorPos = (currentSector.sector && currentSector.sector.position) ? 
                     currentSector.sector.position : new THREE.Vector3(0, 0, 0);
-                const radius = (currentSector.sector && typeof currentSector.sector.radius === 'number') ? 
+                const sectorRadius = (currentSector.sector && typeof currentSector.sector.radius === 'number') ? 
                     currentSector.sector.radius : 1000;
                 
-                // Check for planets - safely count them
+                // Count planets - MANUAL counting to avoid filter()
                 if (this.gameWorld.planets && Array.isArray(this.gameWorld.planets)) {
                     try {
-                        planetCount = this.gameWorld.planets.filter(planet => {
-                            // Defensive check for valid planet
+                        planetCount = 0; // Reset counter
+                        for (let i = 0; i < this.gameWorld.planets.length; i++) {
+                            const planet = this.gameWorld.planets[i];
+                            // Check if planet is valid
                             if (planet && planet.position) {
-                                return planet.position.distanceTo(center) <= radius;
+                                // Check if planet is in this sector
+                                const dist = planet.position.distanceTo(sectorPos);
+                                if (dist <= sectorRadius) {
+                                    planetCount++;
+                                }
                             }
-                            return false;
-                        }).length;
+                        }
                     } catch (err) {
                         console.warn("Error counting planets in sector:", err);
                     }
                 }
                 
-                // Check all possible alien ship array names to be safe
-                const alienArrays = [
-                    this.gameWorld.aliens,
-                    this.gameWorld.alienShips,
-                    this.gameWorld.enemies
-                ];
-                
-                // Try each possible array name
-                for (const aliens of alienArrays) {
-                    if (aliens && Array.isArray(aliens)) {
-                        try {
-                            alienCount = aliens.filter(alien => {
-                                // Defensive check for valid alien
-                                if (alien && alien.position) {
-                                    return alien.position.distanceTo(center) <= radius;
-                                }
-                                return false;
-                            }).length;
+                // Count aliens - check multiple possible arrays
+                // This avoids using filter() completely
+                try {
+                    alienCount = 0; // Reset counter
+                    
+                    // Define the arrays to check (safely)
+                    const arrayToCheck = [
+                        this.gameWorld.aliens,
+                        this.gameWorld.alienShips, 
+                        this.gameWorld.enemies
+                    ];
+                    
+                    // Loop through each possible array
+                    for (let a = 0; a < arrayToCheck.length; a++) {
+                        const aliens = arrayToCheck[a];
+                        
+                        // Skip if not an array
+                        if (!aliens || !Array.isArray(aliens)) {
+                            continue;
+                        }
+                        
+                        // Loop through aliens in the array
+                        for (let i = 0; i < aliens.length; i++) {
+                            const alien = aliens[i];
                             
-                            // If we found aliens, no need to check other arrays
-                            if (alienCount > 0) {
-                                break;
+                            // Check if alien is valid
+                            if (alien && alien.position) {
+                                // Check if alien is in this sector
+                                const dist = alien.position.distanceTo(sectorPos);
+                                if (dist <= sectorRadius) {
+                                    alienCount++;
+                                }
                             }
-                        } catch (err) {
-                            console.warn("Error counting aliens in one array:", err);
-                            // Continue with other arrays
                         }
                     }
+                } catch (err) {
+                    console.warn("Error counting aliens in sector:", err);
                 }
             }
             
@@ -909,94 +922,185 @@ export class UIManager {
     }
     
     updateMinimap() {
-        if (!this.minimapContext || !this.currentSector || !this.currentSector.sector) return;
-        
-        const ctx = this.minimapContext;
-        const canvas = this.hudElements.minimapCanvas;
-        const width = canvas.width;
-        const height = canvas.height;
-        
-        // Clear canvas
-        ctx.clearRect(0, 0, width, height);
-        
-        // Draw sector boundary
-        const sectorRadius = this.currentSector.sector.radius;
-        const scale = Math.min(width, height) / (sectorRadius * 2.2); // Scale with some margin
-        
-        // Sector center on canvas
-        const centerX = width / 2;
-        const centerY = height / 2;
-        
-        // Draw sector circle
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, sectorRadius * scale, 0, Math.PI * 2);
-        ctx.strokeStyle = '#8af7ff';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-        
-        // Draw sector name
-        ctx.fillStyle = '#8af7ff';
-        ctx.font = '10px Orbitron';
-        ctx.textAlign = 'center';
-        ctx.fillText(this.currentSector.name.toUpperCase(), centerX, 15);
-        
-        // Draw objects in this sector
-        if (this.gameWorld) {
-            // Draw planets
-            this.gameWorld.planets.forEach(planet => {
-                if (planet.position.distanceTo(this.currentSector.sector.center) <= this.currentSector.sector.radius) {
-                    const planetX = centerX + (planet.position.x - this.currentSector.sector.center.x) * scale;
-                    const planetY = centerY + (planet.position.z - this.currentSector.sector.center.z) * scale;
-                    
-                    // Determine color based on planet type
-                    let color = '#8af7ff';
-                    if (planet.config) {
-                        switch(planet.config.type) {
-                            case 'earth': color = '#4488ff'; break;
-                            case 'desert': color = '#ffcc00'; break;
-                            case 'gas': color = '#ff9500'; break;
-                            case 'ice': color = '#aaddff'; break;
-                            case 'lava': color = '#ff3366'; break;
-                            case 'rocky': color = '#aaaaaa'; break;
-                        }
-                    }
-                    
-                    // Draw planet
-                    ctx.beginPath();
-                    ctx.arc(planetX, planetY, 5, 0, Math.PI * 2);
-                    ctx.fillStyle = color;
-                    ctx.fill();
-                }
-            });
+        try {
+            // Guard clauses - return early if any required component is missing
+            if (!this.minimapContext) {
+                console.warn('UIManager: Cannot update minimap - context not available');
+                return;
+            }
             
-            // Draw alien ships
-            this.gameWorld.alienShips.forEach(alien => {
-                if (alien.position.distanceTo(this.currentSector.sector.center) <= this.currentSector.sector.radius) {
-                    const alienX = centerX + (alien.position.x - this.currentSector.sector.center.x) * scale;
-                    const alienY = centerY + (alien.position.z - this.currentSector.sector.center.z) * scale;
+            if (!this.currentSector) {
+                console.warn('UIManager: Cannot update minimap - no current sector');
+                return;
+            }
+            
+            if (!this.currentSector.sector) {
+                console.warn('UIManager: Cannot update minimap - current sector has no sector property');
+                return;
+            }
+            
+            if (!this.spacecraft) {
+                console.warn('UIManager: Cannot update minimap - spacecraft not available');
+                return;
+            }
+            
+            if (!this.spacecraft.position) {
+                console.warn('UIManager: Cannot update minimap - spacecraft has no position');
+                return;
+            }
+            
+            if (!this.hudElements || !this.hudElements.minimapCanvas) {
+                console.warn('UIManager: Cannot update minimap - canvas not available');
+                return;
+            }
+            
+            // Safe local references
+            const ctx = this.minimapContext;
+            const canvas = this.hudElements.minimapCanvas;
+            const width = canvas.width || 200;
+            const height = canvas.height || 200;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, width, height);
+            
+            // Get sector data safely
+            const sectorRadius = this.currentSector.sector.radius || 1000;
+            const sectorCenter = this.currentSector.sector.center || new THREE.Vector3(0, 0, 0);
+            const sectorName = this.currentSector.name || "Unknown";
+            
+            // Set scale and center coordinates
+            const scale = Math.min(width, height) / (sectorRadius * 2.2); // Scale with margin
+            const centerX = width / 2;
+            const centerY = height / 2;
+            
+            // Draw sector circle
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, sectorRadius * scale, 0, Math.PI * 2);
+            ctx.strokeStyle = '#8af7ff';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            
+            // Draw sector name
+            ctx.fillStyle = '#8af7ff';
+            try {
+                ctx.font = '10px Orbitron';
+                ctx.textAlign = 'center';
+                ctx.fillText(sectorName.toUpperCase(), centerX, 15);
+            } catch (fontError) {
+                console.warn('UIManager: Font error in minimap', fontError);
+                // Use a fallback font
+                ctx.font = '10px sans-serif';
+                ctx.fillText(sectorName.toUpperCase(), centerX, 15);
+            }
+            
+            // Draw objects in this sector - planets
+            if (this.gameWorld && this.gameWorld.planets) {
+                // Safety check - ensure planets is an array
+                const planets = Array.isArray(this.gameWorld.planets) ? this.gameWorld.planets : [];
+                
+                // Use for loop instead of forEach for better control
+                for (let i = 0; i < planets.length; i++) {
+                    const planet = planets[i];
                     
-                    // Draw alien
-                    ctx.beginPath();
-                    ctx.moveTo(alienX, alienY - 3);
-                    ctx.lineTo(alienX + 3, alienY + 3);
-                    ctx.lineTo(alienX - 3, alienY + 3);
-                    ctx.closePath();
-                    ctx.fillStyle = '#ff3366';
-                    ctx.fill();
+                    // Skip invalid planets
+                    if (!planet || !planet.position) continue;
+                    
+                    try {
+                        // Calculate distance safely
+                        const distanceToPlanet = planet.position.distanceTo(sectorCenter);
+                        
+                        if (distanceToPlanet <= sectorRadius) {
+                            const planetX = centerX + (planet.position.x - sectorCenter.x) * scale;
+                            const planetY = centerY + (planet.position.z - sectorCenter.z) * scale;
+                            
+                            // Determine color based on planet type
+                            let color = '#8af7ff';
+                            if (planet.config && planet.config.type) {
+                                switch(planet.config.type) {
+                                    case 'earth': color = '#4488ff'; break;
+                                    case 'desert': color = '#ffcc00'; break;
+                                    case 'gas': color = '#ff9500'; break;
+                                    case 'ice': color = '#aaddff'; break;
+                                    case 'lava': color = '#ff3366'; break;
+                                    case 'rocky': color = '#aaaaaa'; break;
+                                }
+                            }
+                            
+                            // Draw planet
+                            ctx.beginPath();
+                            ctx.arc(planetX, planetY, 5, 0, Math.PI * 2);
+                            ctx.fillStyle = color;
+                            ctx.fill();
+                        }
+                    } catch (planetError) {
+                        console.warn('UIManager: Error drawing planet on minimap', planetError);
+                        continue; // Skip to next planet
+                    }
                 }
-            });
+            }
+            
+            // Draw alien ships - check multiple possible array names
+            const alienArrays = [
+                this.gameWorld && this.gameWorld.alienShips,
+                this.gameWorld && this.gameWorld.aliens,
+                this.gameWorld && this.gameWorld.enemies
+            ];
+            
+            // Try each possible array name
+            for (const alienArray of alienArrays) {
+                if (!alienArray || !Array.isArray(alienArray)) continue;
+                
+                for (let i = 0; i < alienArray.length; i++) {
+                    const alien = alienArray[i];
+                    
+                    // Skip invalid aliens
+                    if (!alien || !alien.position) continue;
+                    
+                    try {
+                        const distanceToAlien = alien.position.distanceTo(sectorCenter);
+                        
+                        if (distanceToAlien <= sectorRadius) {
+                            const alienX = centerX + (alien.position.x - sectorCenter.x) * scale;
+                            const alienY = centerY + (alien.position.z - sectorCenter.z) * scale;
+                            
+                            // Draw alien
+                            ctx.beginPath();
+                            ctx.moveTo(alienX, alienY - 3);
+                            ctx.lineTo(alienX + 3, alienY + 3);
+                            ctx.lineTo(alienX - 3, alienY + 3);
+                            ctx.closePath();
+                            ctx.fillStyle = '#ff3366';
+                            ctx.fill();
+                        }
+                    } catch (alienError) {
+                        console.warn('UIManager: Error drawing alien on minimap', alienError);
+                        continue; // Skip to next alien
+                    }
+                }
+            }
+            
+            // Draw player position - with safety checks
+            try {
+                if (this.spacecraft && this.spacecraft.position && sectorCenter) {
+                    const playerRelativeX = this.spacecraft.position.x - sectorCenter.x;
+                    const playerRelativeZ = this.spacecraft.position.z - sectorCenter.z;
+                    
+                    const playerX = centerX + playerRelativeX * scale;
+                    const playerY = centerY + playerRelativeZ * scale;
+                    
+                    // Update player indicator if it exists
+                    if (this.hudElements.playerIndicator) {
+                        this.hudElements.playerIndicator.style.left = `${playerX}px`;
+                        this.hudElements.playerIndicator.style.top = `${playerY}px`;
+                    }
+                }
+            } catch (playerError) {
+                console.warn('UIManager: Error drawing player on minimap', playerError);
+            }
+        } catch (error) {
+            console.warn('UIManager: Critical error in updateMinimap', error);
+            // Don't re-throw - minimap errors should not crash the game
         }
-        
-        // Draw player position
-        const playerRelativeX = this.spacecraft.position.x - this.currentSector.sector.center.x;
-        const playerRelativeZ = this.spacecraft.position.z - this.currentSector.sector.center.z;
-        
-        const playerX = centerX + playerRelativeX * scale;
-        const playerY = centerY + playerRelativeZ * scale;
-        
-        // Update player indicator position
-        this.hudElements.playerIndicator.style.left = `${playerX}px`;
-        this.hudElements.playerIndicator.style.top = `${playerY}px`;
     }
     
     updateScore(points) {
@@ -1078,16 +1182,20 @@ export class UIManager {
     
     update(delta, currentSector) {
         try {
+            // Don't continue if not initialized
             if (!this.isInitialized) return;
             
-            // Update HUD elements with defensive coding
-            try {
-                if (this.updateHUD && typeof this.updateHUD === 'function') {
+            // Update HUD elements if possible
+            if (this.updateHUD && typeof this.updateHUD === 'function') {
+                try {
                     this.updateHUD();
+                } catch (hudError) {
+                    console.warn("Error updating HUD:", hudError);
                 }
-            } catch (hudError) {
-                console.error("Error updating HUD:", hudError);
             }
+            
+            // Skip sector updates if no currentSector provided
+            if (!currentSector) return;
             
             // Update sector information if changed
             try {
@@ -1095,30 +1203,34 @@ export class UIManager {
                 const prevSector = this.currentSector;
                 this.currentSector = currentSector;
                 
-                // Safely get sector names with fallbacks
+                // Only update sector info if sector is new or changed
                 const currentName = currentSector && currentSector.name ? currentSector.name : "unknown";
                 const prevName = prevSector && prevSector.name ? prevSector.name : "";
                 
-                if (currentSector && (!prevSector || currentName !== prevName)) {
-                    // Update sector info
+                // Only update and notify if sector has changed
+                if (!prevSector || currentName !== prevName) {
+                    // Update sector information
                     this.updateSectorInfo(currentSector);
                     
-                    // Show notification if we have a valid name
+                    // Show new sector notification
                     if (currentName && currentName !== "unknown") {
                         try {
                             this.showNotification(`ENTERING ${currentName.toUpperCase()} SECTOR`);
-                        } catch (notifyError) {
-                            console.warn("Error showing sector notification:", notifyError);
+                        } catch (e) {
+                            console.warn("Error showing sector notification", e);
                         }
                     }
                 }
             } catch (sectorError) {
-                console.error("Error handling sector update:", sectorError);
+                console.warn("Error handling sector update:", sectorError);
             }
             
-            // Check player health with safety checks
+            // Check player health
             try {
-                if (this.spacecraft && typeof this.spacecraft.health === 'number' && this.spacecraft.health <= 0) {
+                if (this.spacecraft && 
+                    typeof this.spacecraft.health === 'number' && 
+                    this.spacecraft.health <= 0) {
+                    
                     // Show death screen
                     this.showDeathScreen();
                     
@@ -1126,11 +1238,11 @@ export class UIManager {
                     this.spacecraft.health = 0.1;
                 }
             } catch (healthError) {
-                console.error("Error checking player health:", healthError);
+                console.warn("Error checking player health:", healthError);
             }
         } catch (error) {
-            console.error("Critical error in UI update:", error);
-            // Don't rethrow - UI errors shouldn't crash the game
+            // Never throw errors from UI updates - UI errors shouldn't crash the game
+            console.warn("Critical error in UI update:", error);
         }
     }
     
