@@ -702,17 +702,27 @@ class Game {
             // Setup loading screen
             this.setupLoadingScreen();
             
+            // Manually update loading progress since we don't have actual assets loading
+            this.updateLoadingProgress(10);
+            
             // Initialize Three.js core components
             this.initThree();
             
+            this.updateLoadingProgress(30);
+            
             // Initialize game systems
             this.initGameSystems();
+            
+            this.updateLoadingProgress(80);
             
             // Add event listeners
             window.addEventListener('resize', this.onWindowResize);
             
             // Start the animation loop
             this.animate();
+            
+            // Complete loading
+            this.updateLoadingProgress(100);
             
             console.log("Game initialized successfully");
         } catch (error) {
