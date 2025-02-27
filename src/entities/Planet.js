@@ -64,7 +64,7 @@ export class Planet extends THREE.Object3D {
             
             // Add to scene
             this.scene.add(this.mesh);
-            
+        
             // Create rings if needed
             if (this.hasRings) {
                 this.createRings();
@@ -72,9 +72,9 @@ export class Planet extends THREE.Object3D {
             
             // Create atmosphere for terrestrial planets
             if (this.type === 'terrestrial' || this.type === 'earth' || this.type === 'ocean') {
-                this.createAtmosphere();
-            }
-            
+        this.createAtmosphere();
+    }
+    
             // Create moons
             this.createMoons();
             
@@ -208,7 +208,7 @@ export class Planet extends THREE.Object3D {
             }
         } catch (error) {
             console.error("Error creating planet material:", error);
-            
+                        
             // Fallback to a simple material
             return new THREE.MeshBasicMaterial({ color: 0xaaaaaa });
         }
@@ -224,12 +224,12 @@ export class Planet extends THREE.Object3D {
                         color: 0xffff00
                     });
                     
-                case 'earth':
+                            case 'earth':
                     return new THREE.MeshBasicMaterial({
                         color: 0x2233ff
                     });
-                    
-                case 'mars':
+                                
+                            case 'mars':
                     return new THREE.MeshBasicMaterial({
                         color: 0xaa3300
                     });
@@ -243,8 +243,8 @@ export class Planet extends THREE.Object3D {
                     return new THREE.MeshBasicMaterial({
                         color: 0x888888
                     });
-                    
-                case 'jupiter':
+                                
+                            case 'jupiter':
                     return new THREE.MeshBasicMaterial({
                         color: 0xddaa77
                     });
@@ -253,8 +253,8 @@ export class Planet extends THREE.Object3D {
                     return new THREE.MeshBasicMaterial({
                         color: 0xddcc88
                     });
-                    
-                case 'ice':
+                                
+                            case 'ice':
                     return new THREE.MeshBasicMaterial({
                         color: 0x88aadd
                     });
@@ -263,8 +263,8 @@ export class Planet extends THREE.Object3D {
                     return new THREE.MeshBasicMaterial({
                         color: 0xaaaaaa
                     });
-                    
-                default:
+                                
+                            default:
                     // Random color for generic planets
                     const color = new THREE.Color(
                         0.5 + Math.random() * 0.5,
@@ -273,17 +273,17 @@ export class Planet extends THREE.Object3D {
                     );
                     
                     return new THREE.MeshBasicMaterial({
-                        color: color
-                    });
-            }
+                                color: color
+                            });
+                        }
         } catch (error) {
             console.error("Error creating simple material:", error);
             
             // Fallback to a very simple material
             return new THREE.MeshBasicMaterial({ color: 0xaaaaaa });
+            }
         }
-    }
-    
+        
     createRings() {
         try {
             // PERFORMANCE: Skip rings in low detail mode for small planets
@@ -438,9 +438,9 @@ export class Planet extends THREE.Object3D {
             // Skip if mesh doesn't exist
             if (!this.mesh) return;
             
-            // Rotate the planet
+        // Rotate the planet
             this.mesh.rotation.y += this.rotationSpeed * delta;
-            
+        
             // Rotate rings if they exist
             if (this.rings) {
                 this.rings.rotation.z += this.rotationSpeed * 0.3 * delta;

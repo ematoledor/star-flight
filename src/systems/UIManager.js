@@ -632,7 +632,7 @@ export class UIManager {
                 if (nearestObject) {
                     const distance = Math.round(nearestObject.distance);
                     this.hudElements.nearestObject.textContent = `${nearestObject.name} (${distance}m)`;
-                } else {
+            } else {
                     this.hudElements.nearestObject.textContent = "None";
                 }
             }

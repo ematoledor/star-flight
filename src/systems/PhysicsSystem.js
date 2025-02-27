@@ -60,13 +60,13 @@ export class PhysicsSystem {
     update(delta) {
         try {
             // Apply gravity to all objects
-            this.objects.forEach(object => {
+        this.objects.forEach(object => {
                 try {
                     // Skip objects without position
                     if (!object || !object.position) return;
                     
                     // Apply gravity
-                    this.applyPlanetaryGravity(object, delta);
+                this.applyPlanetaryGravity(object, delta);
                     
                     // Check for collisions
                     this.checkCollisions(object);
@@ -243,15 +243,15 @@ export class PhysicsSystem {
                 return;
             }
             
-            const objectBounds = this.getBoundingBox(object);
-            
-            // Skip objects without bounding boxes
-            if (!objectBounds) {
-                return;
-            }
-            
-            // Check against other physics objects
-            this.objects.forEach(otherObject => {
+        const objectBounds = this.getBoundingBox(object);
+        
+        // Skip objects without bounding boxes
+        if (!objectBounds) {
+            return;
+        }
+        
+        // Check against other physics objects
+        this.objects.forEach(otherObject => {
                 try {
                     // Skip self or null objects
                     if (!otherObject || otherObject === object) {
@@ -267,23 +267,23 @@ export class PhysicsSystem {
                     if (object.collisionGroup && 
                         otherObject.collisionGroup && 
                         !(object.collisionGroup & otherObject.collisionGroup)) {
-                        return;
-                    }
-                    
-                    const otherBounds = this.getBoundingBox(otherObject);
-                    
-                    // Skip objects without bounding boxes
-                    if (!otherBounds) {
-                        return;
-                    }
-                    
+                return;
+            }
+            
+            const otherBounds = this.getBoundingBox(otherObject);
+            
+            // Skip objects without bounding boxes
+            if (!otherBounds) {
+                return;
+            }
+            
                     try {
-                        // Check for overlap
-                        if (this.checkBoundsOverlap(objectBounds, otherBounds)) {
+            // Check for overlap
+            if (this.checkBoundsOverlap(objectBounds, otherBounds)) {
                             // Calculate penetration depth for better collision response
                             const penetration = this.calculatePenetration(objectBounds, otherBounds);
                             
-                            // Collision detected!
+                // Collision detected!
                             this.handleCollision(object, otherObject, penetration);
                         }
                     } catch (error) {
@@ -396,14 +396,14 @@ export class PhysicsSystem {
         // If it's a THREE.Object3D with geometry, calculate bounding box
         if (object.geometry) {
             try {
-                if (!object.geometry.boundingBox) {
-                    object.geometry.computeBoundingBox();
-                }
-                
-                const bbox = object.geometry.boundingBox.clone();
-                bbox.applyMatrix4(object.matrixWorld);
-                
-                return bbox;
+            if (!object.geometry.boundingBox) {
+                object.geometry.computeBoundingBox();
+            }
+            
+            const bbox = object.geometry.boundingBox.clone();
+            bbox.applyMatrix4(object.matrixWorld);
+            
+            return bbox;
             } catch (error) {
                 console.warn('PhysicsSystem: Error computing bounding box from geometry', error);
             }
@@ -412,38 +412,38 @@ export class PhysicsSystem {
         // For other objects, we'll need to compute from children
         if (object.children && object.children.length > 0) {
             try {
-                // Create a bounding box from all children
-                const bbox = new THREE.Box3();
-                
-                // Initialize with first child that has a bounding box
-                let initialized = false;
-                
-                // Iterate through children
-                object.traverse(child => {
+            // Create a bounding box from all children
+            const bbox = new THREE.Box3();
+            
+            // Initialize with first child that has a bounding box
+            let initialized = false;
+            
+            // Iterate through children
+            object.traverse(child => {
                     // Safety check for child and its geometry
                     if (!child || !child.geometry) return;
                     
                     try {
-                        if (!child.geometry.boundingBox) {
-                            child.geometry.computeBoundingBox();
-                        }
-                        
-                        const childBox = child.geometry.boundingBox.clone();
-                        childBox.applyMatrix4(child.matrixWorld);
-                        
-                        if (!initialized) {
-                            bbox.copy(childBox);
-                            initialized = true;
-                        } else {
-                            bbox.union(childBox);
-                        }
+                    if (!child.geometry.boundingBox) {
+                        child.geometry.computeBoundingBox();
+                    }
+                    
+                    const childBox = child.geometry.boundingBox.clone();
+                    childBox.applyMatrix4(child.matrixWorld);
+                    
+                    if (!initialized) {
+                        bbox.copy(childBox);
+                        initialized = true;
+                    } else {
+                        bbox.union(childBox);
+                    }
                     } catch (error) {
                         console.warn('PhysicsSystem: Error processing child geometry', error);
-                    }
-                });
-                
-                if (initialized) {
-                    return bbox;
+                }
+            });
+            
+            if (initialized) {
+                return bbox;
                 }
             } catch (error) {
                 console.warn('PhysicsSystem: Error computing bounding box from children', error);
@@ -459,15 +459,15 @@ export class PhysicsSystem {
             }
             
             const position = object.position;
-            const radius = object.collisionRadius || 1;
-            
-            const bbox = new THREE.Box3();
-            bbox.setFromCenterAndSize(
-                position,
-                new THREE.Vector3(radius * 2, radius * 2, radius * 2)
-            );
-            
-            return bbox;
+        const radius = object.collisionRadius || 1;
+        
+        const bbox = new THREE.Box3();
+        bbox.setFromCenterAndSize(
+            position,
+            new THREE.Vector3(radius * 2, radius * 2, radius * 2)
+        );
+        
+        return bbox;
         } catch (error) {
             console.warn('PhysicsSystem: Error creating default bounding box', error);
             return null;
@@ -498,7 +498,7 @@ export class PhysicsSystem {
                 return false;
             }
             
-            return bounds1.intersectsBox(bounds2);
+        return bounds1.intersectsBox(bounds2);
         } catch (error) {
             console.warn('PhysicsSystem: Error in checkBoundsOverlap', error);
             return false;
@@ -512,18 +512,18 @@ export class PhysicsSystem {
                 return;
             }
             
-            // Let the objects handle their own collision responses if they can
-            if (object1.onCollision) {
+        // Let the objects handle their own collision responses if they can
+        if (object1.onCollision) {
                 try {
-                    object1.onCollision(object2);
+            object1.onCollision(object2);
                 } catch (error) {
                     console.warn('PhysicsSystem: Error in object1.onCollision callback', error);
                 }
-            }
-            
-            if (object2.onCollision) {
+        }
+        
+        if (object2.onCollision) {
                 try {
-                    object2.onCollision(object1);
+            object2.onCollision(object1);
                 } catch (error) {
                     console.warn('PhysicsSystem: Error in object2.onCollision callback', error);
                 }
@@ -597,33 +597,33 @@ export class PhysicsSystem {
                     object1.position.add(penetration.clone().multiplyScalar(pushFactor1));
                     object2.position.sub(penetration.clone().multiplyScalar(pushFactor2));
                 }
-            }
-            // If only one object has velocity, make it bounce
-            else if (object1.velocity) {
-                // Reflect the velocity based on collision normal
+        }
+        // If only one object has velocity, make it bounce
+        else if (object1.velocity) {
+            // Reflect the velocity based on collision normal
                 const normal = penetration.clone().normalize();
                 const dot = object1.velocity.dot(normal);
-                
+            
                 // Only bounce if moving toward the object
                 if (dot < 0) {
-                    // v' = v - 2(v·n)n - reflection formula
-                    object1.velocity.sub(normal.multiplyScalar(2 * dot));
-                    
+            // v' = v - 2(v·n)n - reflection formula
+            object1.velocity.sub(normal.multiplyScalar(2 * dot));
+            
                     // Reduce velocity to simulate energy loss
                     object1.velocity.multiplyScalar(0.7);
-                    
-                    // Move object out of collision
+            
+            // Move object out of collision
                     object1.position.add(penetration);
                 }
-            }
-            else if (object2.velocity) {
-                // Same logic but for object2
+        }
+        else if (object2.velocity) {
+            // Same logic but for object2
                 const normal = penetration.clone().normalize().negate();
                 const dot = object2.velocity.dot(normal);
-                
+            
                 // Only bounce if moving toward the object
                 if (dot < 0) {
-                    object2.velocity.sub(normal.multiplyScalar(2 * dot));
+            object2.velocity.sub(normal.multiplyScalar(2 * dot));
                     object2.velocity.multiplyScalar(0.7);
                     object2.position.add(penetration.clone().negate());
                 }
