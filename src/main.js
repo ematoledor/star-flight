@@ -443,4 +443,7 @@ window.addEventListener('load', () => {
             console.error("Error starting game:", error);
         }
     }, 1000); // Small delay to allow the loading screen to display
-}); 
+});
+
+// Export the Game class for module bundling
+export default Game; 
