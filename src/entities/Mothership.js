@@ -34,20 +34,9 @@ export class Mothership extends THREE.Object3D {
     
     createModel() {
         // Create a large carrier ship using voxels
-        const modelConfig = {
-            dimensions: [20, 5, 40], // Width, height, depth
-            palette: [
-                0x888888, // Gray for hull
-                0x444444, // Dark gray for details
-                0xCCCCCC, // Light gray for highlights
-                0x0088FF, // Blue for engines/lights
-                0xFF4400  // Orange for warning lights
-            ],
-            voxelSize: 10 // Large voxels for this massive ship
-        };
         
-        // Create the base voxel model
-        this.model = new VoxelModel(modelConfig);
+        // First, build the design array
+        const design = [];
         
         // Main hull (base layer)
         for (let x = 0; x < 20; x++) {
@@ -57,7 +46,12 @@ export class Mothership extends THREE.Object3D {
                 const width = Math.floor(8 * widthFactor + 4);
                 
                 if (x >= 10 - width/2 && x < 10 + width/2) {
-                    this.model.setVoxel(x, 2, z, 0); // Main hull color
+                    // Add voxel to design array
+                    design.push({
+                        position: [x - 10, 2, z - 20], // Center the model
+                        size: [1, 1, 1],
+                        color: 0x888888 // Main hull color
+                    });
                 }
             }
         }
@@ -66,11 +60,20 @@ export class Mothership extends THREE.Object3D {
         for (let x = 5; x < 15; x++) {
             for (let z = 10; z < 30; z++) {
                 if (z > 12 && z < 28 && x > 7 && x < 13) {
-                    this.model.setVoxel(x, 3, z, 1); // Command structure
+                    // Command structure
+                    design.push({
+                        position: [x - 10, 3, z - 20], // Center the model
+                        size: [1, 1, 1],
+                        color: 0x444444 // Dark gray for details
+                    });
                     
                     // Add bridge superstructure
                     if (z > 18 && z < 22 && x > 8 && x < 12) {
-                        this.model.setVoxel(x, 4, z, 2);
+                        design.push({
+                            position: [x - 10, 4, z - 20], // Center the model
+                            size: [1, 1, 1],
+                            color: 0xCCCCCC // Light gray for highlights
+                        });
                     }
                 }
             }
@@ -80,23 +83,45 @@ export class Mothership extends THREE.Object3D {
         for (let x = 6; x < 14; x++) {
             for (let z = 15; z < 25; z++) {
                 // Create landing bay opening
-                this.model.setVoxel(x, 1, z, 4); // Orange for docking area
+                design.push({
+                    position: [x - 10, 1, z - 20], // Center the model
+                    size: [1, 1, 1],
+                    color: 0xFF4400 // Orange for docking area
+                });
             }
         }
         
         // Engines at the back
         for (let x = 6; x < 14; x++) {
             for (let y = 1; y < 4; y++) {
-                this.model.setVoxel(x, y, 39, 3); // Blue engine glow
+                design.push({
+                    position: [x - 10, y, 19], // Back of the ship
+                    size: [1, 1, 1],
+                    color: 0x0088FF // Blue engine glow
+                });
             }
         }
         
         // Navigation lights
-        this.model.setVoxel(0, 2, 0, 4); // Port navigation (red)
-        this.model.setVoxel(19, 2, 0, 3); // Starboard navigation (green)
+        design.push({
+            position: [-10, 2, -20], // Port navigation
+            size: [1, 1, 1],
+            color: 0xFF4400 // Red
+        });
         
-        // Add the model to the mothership
-        this.model.build();
+        design.push({
+            position: [9, 2, -20], // Starboard navigation
+            size: [1, 1, 1],
+            color: 0x0088FF // Green/blue
+        });
+        
+        // Create the model with the complete design
+        const modelConfig = {
+            design: design,
+            scale: 10 // Large voxels for this massive ship
+        };
+        
+        this.model = new VoxelModel(modelConfig);
         this.add(this.model);
         
         // Add a dynamic point light for the docking bay
