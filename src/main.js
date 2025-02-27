@@ -8,6 +8,77 @@ import { LODManager } from './systems/LODManager.js';
 import { CombatSystem } from './systems/CombatSystem.js';
 import { UpgradeSystem } from './systems/UpgradeSystem.js';
 import { InputManager } from './systems/InputManager.js';
+import { InputHandler } from './systems/InputHandler.js';
+
+// Add global emergency functions
+window.fixControls = function() {
+    console.log("Emergency control fix initiated from console");
+    
+    try {
+        // Try to access the game instance
+        const game = window.game;
+        
+        if (!game) {
+            console.error("Game instance not found on window object");
+            return false;
+        }
+        
+        // Try to reinitialize input system
+        if (typeof game.reinitializeInputSystem === 'function') {
+            return game.reinitializeInputSystem();
+        } else {
+            console.error("reinitializeInputSystem method not found on game instance");
+            return false;
+        }
+    } catch (error) {
+        console.error("Error in fixControls:", error);
+        return false;
+    }
+};
+
+// Add a function to force pointer lock
+window.forcePointerLock = function() {
+    console.log("Forcing pointer lock");
+    try {
+        document.body.requestPointerLock();
+        return true;
+    } catch (error) {
+        console.error("Error forcing pointer lock:", error);
+        return false;
+    }
+};
+
+// Add a function to check input system status
+window.checkInputSystem = function() {
+    console.log("Checking input system status");
+    
+    try {
+        const game = window.game;
+        const inputManager = window.gameInputManager;
+        
+        if (!game) {
+            console.error("Game instance not found");
+            return false;
+        }
+        
+        if (!inputManager) {
+            console.error("Input manager not found");
+            return false;
+        }
+        
+        // Log diagnostic information
+        console.log("Game instance:", game ? "Available" : "Missing");
+        console.log("Input manager:", inputManager ? "Available" : "Missing");
+        console.log("Spacecraft:", game.spacecraft ? "Available" : "Missing");
+        console.log("Document ready state:", document.readyState);
+        console.log("Pointer lock element:", document.pointerLockElement);
+        
+        return true;
+    } catch (error) {
+        console.error("Error checking input system:", error);
+        return false;
+    }
+};
 
 class Game {
     constructor() {
@@ -1845,38 +1916,70 @@ class Game {
 
     // Add a method to initialize input bindings
     initInputManager() {
-        // Create input manager if it doesn't exist
-        if (!this.inputManager) {
-            this.inputManager = {
-                registerKeyBinding: (key, callback) => {
-                    document.addEventListener('keydown', (event) => {
-                        if (event.key.toLowerCase() === key.toLowerCase()) {
-                            callback();
-                        }
-                    });
+        try {
+            console.log("Initializing input manager...");
+            this.inputManager = new InputHandler(this.spacecraft);
+            
+            // Add a global reference for emergency access
+            window.gameInputManager = this.inputManager;
+            
+            // Add a global emergency reinitialize function
+            window.reinitializeControls = () => this.reinitializeInputSystem();
+            
+            // Add a keyboard listener for emergency input reset (Alt+R)
+            document.addEventListener('keydown', (e) => {
+                if (e.altKey && e.key.toLowerCase() === 'r') {
+                    console.log("Emergency input system reset triggered");
+                    this.reinitializeInputSystem();
                 }
-            };
+            });
+            
+            console.log("Input manager initialized");
+        } catch (error) {
+            console.error("Error initializing input manager:", error);
         }
-        
-        // Register debug key (D)
-        this.inputManager.registerKeyBinding('d', () => {
-            this.toggleDebugMode();
-        });
-        
-        // Register launch key (L)
-        this.inputManager.registerKeyBinding('l', () => {
-            if (this.spacecraft) {
-                console.log('Launch key pressed');
-                // Add launch logic here
+    }
+
+    // Add this new method for emergency input reset
+    reinitializeInputSystem() {
+        try {
+            console.log("Reinitializing input system...");
+            
+            // First try to reinitialize the existing input manager
+            if (this.inputManager && typeof this.inputManager.reinitialize === 'function') {
+                this.inputManager.reinitialize();
+            } else {
+                // If that fails, create a new input manager
+                console.log("Creating new input manager...");
+                if (this.inputManager) {
+                    // Try to clean up old event listeners (not perfect but helps)
+                    this.inputManager = null;
+                }
+                
+                // Force garbage collection if possible
+                if (window.gc) window.gc();
+                
+                // Create new input manager
+                this.inputManager = new InputHandler(this.spacecraft);
+                
+                // Update global reference
+                window.gameInputManager = this.inputManager;
             }
-        });
-        
-        // Register scan key (S)
-        this.inputManager.registerKeyBinding('s', () => {
-            this.scanSurroundings();
-        });
-        
-        console.log('Input manager initialized with key bindings');
+            
+            // Make sure spacecraft reference is set
+            if (this.spacecraft && this.inputManager) {
+                this.inputManager.setSpacecraft(this.spacecraft);
+            }
+            
+            // Show notification to user
+            this.showNotification("Controls have been reset. Try moving now.", "info", 5000);
+            
+            console.log("Input system reinitialized");
+            return true;
+        } catch (error) {
+            console.error("Error reinitializing input system:", error);
+            return false;
+        }
     }
         
         // Initialize physics system

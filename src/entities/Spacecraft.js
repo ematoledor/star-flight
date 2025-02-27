@@ -72,6 +72,9 @@ export class Spacecraft extends THREE.Object3D {
         
         // Add engine glow effects
         this.createEngineEffects();
+        
+        // Add the pilot character
+        this.createPilotCharacter();
     }
     
     createEngineEffects() {
@@ -200,6 +203,17 @@ export class Spacecraft extends THREE.Object3D {
             
             if (this.secondaryWeapon) {
                 this.secondaryWeapon.update(delta, this);
+            }
+            
+            // Update pilot character animation if it exists
+            if (this.pilotCharacter && this.pilotBobbing) {
+                // Simple bobbing animation
+                const bobbingHeight = 0.1;
+                const bobbingSpeed = 2;
+                this.pilotCharacter.position.y = 2.5 + Math.sin(Date.now() * 0.002 * bobbingSpeed + this.pilotBobbingOffset) * bobbingHeight;
+                
+                // Slight rotation
+                this.pilotCharacter.rotation.y += delta * 0.2;
             }
         } catch (error) {
             console.error("Error in Spacecraft update:", error);
@@ -384,5 +398,114 @@ export class Spacecraft extends THREE.Object3D {
         
         // Reset any other properties that need resetting
         console.log("Spacecraft reset to initial state");
+    }
+    
+    // New method to create the pilot character
+    createPilotCharacter() {
+        try {
+            console.log("Creating pilot character...");
+            
+            // Create a group for the pilot
+            this.pilotCharacter = new THREE.Group();
+            
+            // Create the main body - a white blob-like shape
+            const bodyGeometry = new THREE.SphereGeometry(0.8, 8, 8);
+            const bodyMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0xFFFFFF,
+                roughness: 0.7,
+                metalness: 0.2
+            });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            // Make it slightly egg-shaped
+            body.scale.set(1, 1.2, 0.9);
+            this.pilotCharacter.add(body);
+            
+            // Add colorful spots
+            const spotColors = [
+                0xFF5555, // red
+                0x55FF55, // green
+                0x5555FF, // blue
+                0xFFAA00, // orange
+                0xAA00FF  // purple
+            ];
+            
+            // Create 8 random spots
+            for (let i = 0; i < 8; i++) {
+                const spotSize = 0.15 + Math.random() * 0.2;
+                const spotGeometry = new THREE.SphereGeometry(spotSize, 6, 6);
+                const spotMaterial = new THREE.MeshStandardMaterial({
+                    color: spotColors[Math.floor(Math.random() * spotColors.length)],
+                    roughness: 0.6,
+                    metalness: 0.1
+                });
+                
+                const spot = new THREE.Mesh(spotGeometry, spotMaterial);
+                
+                // Position randomly on the body surface
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI;
+                const radius = 0.8;
+                
+                spot.position.x = radius * Math.sin(phi) * Math.cos(theta);
+                spot.position.y = radius * Math.sin(phi) * Math.sin(theta) * 1.2; // Adjust for egg shape
+                spot.position.z = radius * Math.cos(phi) * 0.9; // Adjust for egg shape
+                
+                this.pilotCharacter.add(spot);
+            }
+            
+            // Add a face
+            const faceGroup = new THREE.Group();
+            
+            // Eyes (two black spheres)
+            const eyeGeometry = new THREE.SphereGeometry(0.15, 6, 6);
+            const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+            
+            const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+            leftEye.position.set(-0.25, 0.2, 0.7);
+            faceGroup.add(leftEye);
+            
+            const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+            rightEye.position.set(0.25, 0.2, 0.7);
+            faceGroup.add(rightEye);
+            
+            // Simple smile
+            const smileGeometry = new THREE.TorusGeometry(0.2, 0.05, 8, 8, Math.PI);
+            const smileMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+            const smile = new THREE.Mesh(smileGeometry, smileMaterial);
+            smile.position.set(0, -0.1, 0.7);
+            smile.rotation.x = Math.PI / 2;
+            faceGroup.add(smile);
+            
+            // Add the face to the character
+            this.pilotCharacter.add(faceGroup);
+            
+            // Add a green spiral pattern (simplified)
+            const spiralGeometry = new THREE.TorusGeometry(0.4, 0.08, 8, 16, Math.PI * 1.5);
+            const spiralMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x00FF00,
+                roughness: 0.5,
+                metalness: 0.3,
+                emissive: 0x003300
+            });
+            const spiral = new THREE.Mesh(spiralGeometry, spiralMaterial);
+            spiral.position.set(0, 0, -0.2);
+            spiral.rotation.x = Math.PI / 2;
+            this.pilotCharacter.add(spiral);
+            
+            // Position the pilot on top of the ship
+            this.pilotCharacter.position.set(0, 2.5, 1);
+            this.pilotCharacter.scale.set(0.8, 0.8, 0.8);
+            
+            // Add to the ship
+            this.add(this.pilotCharacter);
+            
+            // Add a simple animation
+            this.pilotBobbing = true;
+            this.pilotBobbingOffset = Math.random() * Math.PI * 2; // Random start phase
+            
+            console.log("Pilot character created successfully");
+        } catch (error) {
+            console.error("Error creating pilot character:", error);
+        }
     }
 } 

@@ -13,12 +13,61 @@ export class InputHandler {
         this.lastKeyPressTime = {};
         this.keyDebounceTime = 300; // ms
         
-        // Initialize input listeners
-        this.initKeyboardListeners();
-        this.initMouseListeners();
+        // Flag to track if initialization is complete
+        this.initialized = false;
         
-        // Lock pointer for FPS-style controls
-        this.initPointerLock();
+        // Initialize input listeners with a slight delay to ensure DOM is ready
+        setTimeout(() => this.initialize(), 500);
+        
+        console.log("InputHandler created, initializing with delay");
+    }
+    
+    // New method to initialize all listeners
+    initialize() {
+        if (this.initialized) {
+            console.log("InputHandler already initialized, skipping");
+            return;
+        }
+        
+        try {
+            // Initialize input listeners
+            this.initKeyboardListeners();
+            this.initMouseListeners();
+            
+            // Lock pointer for FPS-style controls
+            this.initPointerLock();
+            
+            this.initialized = true;
+            console.log("InputHandler successfully initialized");
+            
+            // Force a diagnostic log of available keys
+            this.logDiagnostics();
+        } catch (error) {
+            console.error("Error initializing InputHandler:", error);
+        }
+    }
+    
+    // New method to force reinitialization
+    reinitialize() {
+        console.log("Forcing InputHandler reinitialization");
+        this.initialized = false;
+        this.initialize();
+    }
+    
+    // New diagnostic method
+    logDiagnostics() {
+        console.log("InputHandler diagnostics:");
+        console.log("- Spacecraft reference:", this.spacecraft ? "Available" : "Missing");
+        console.log("- Document ready state:", document.readyState);
+        console.log("- Pointer lock available:", 'pointerLockElement' in document ? "Yes" : "No");
+        
+        // Test a key press
+        const testKey = 'w';
+        this.keys[testKey] = true;
+        setTimeout(() => {
+            console.log(`- Test key '${testKey}' registered:`, this.keys[testKey] ? "Yes" : "No");
+            this.keys[testKey] = false;
+        }, 100);
     }
     
     // Method to set spacecraft reference after initialization
