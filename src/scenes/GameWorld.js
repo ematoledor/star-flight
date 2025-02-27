@@ -74,48 +74,88 @@ export class GameWorld {
     }
     
     populateSector(sector) {
-        // Add a planets to the sector
-        const numPlanets = 1 + Math.floor(Math.random() * 2); // 1-2 planets per sector
-        
-        for (let i = 0; i < numPlanets; i++) {
-            // Create with lower initial detail
-            const planetPosition = this.getRandomPositionInSector(sector);
-            setTimeout(() => {
-                const planet = this.createPlanet(planetPosition);
-                this.planets.push(planet);
-            }, i * 200); // Stagger planet creation
+        try {
+            if (!sector) {
+                console.error("Cannot populate undefined sector");
+                return;
+            }
+            
+            console.log(`Populating sector: ${sector.name}`);
+            
+            // Add planets to the sector
+            const numPlanets = 1 + Math.floor(Math.random() * 2); // 1-2 planets per sector
+            
+            for (let i = 0; i < numPlanets; i++) {
+                // Create with lower initial detail
+                try {
+                    const planetPosition = this.getRandomPositionInSector(sector);
+                    setTimeout(() => {
+                        try {
+                            const planet = this.createPlanet(planetPosition);
+                            if (planet) {
+                                this.planets.push(planet);
+                            }
+                        } catch (error) {
+                            console.error("Error creating planet:", error);
+                        }
+                    }, i * 200); // Stagger planet creation
+                } catch (error) {
+                    console.error("Error preparing planet creation:", error);
+                }
+            }
+            
+            // Add asteroid fields
+            const numAsteroidFields = Math.floor(Math.random() * 3); // 0-2 asteroid fields
+            
+            for (let i = 0; i < numAsteroidFields; i++) {
+                setTimeout(() => {
+                    try {
+                        const asteroidField = this.createAsteroidField(sector);
+                        if (asteroidField) {
+                            this.asteroidFields.push(asteroidField);
+                        }
+                    } catch (error) {
+                        console.error("Error creating asteroid field:", error);
+                    }
+                }, numPlanets * 200 + i * 300); // Start after planets are created
+            }
+            
+            // Add some alien ships based on sector difficulty
+            const numAliens = 3 + Math.floor(Math.random() * (sector.difficulty || 1) * 2);
+            
+            for (let i = 0; i < numAliens; i++) {
+                setTimeout(() => {
+                    try {
+                        // Create alien ship with try-catch to handle errors
+                        const alien = this.createAlienShip(sector);
+                        if (alien) {
+                            this.aliens.push(alien);
+                        }
+                    } catch (error) {
+                        console.error("Error creating alien ship:", error);
+                    }
+                }, numPlanets * 200 + numAsteroidFields * 300 + i * 100);
+            }
+            
+            // Add nebula
+            if (Math.random() > 0.5) {
+                setTimeout(() => {
+                    try {
+                        const nebula = this.createNebula(sector);
+                        if (nebula) {
+                            this.nebulae.push(nebula);
+                        }
+                    } catch (error) {
+                        console.error("Error creating nebula:", error);
+                    }
+                }, numPlanets * 200 + numAsteroidFields * 300 + numAliens * 100);
+            }
+            
+            // Mark sector as populated
+            sector.isPopulated = true;
+        } catch (error) {
+            console.error("Error populating sector:", error);
         }
-        
-        // Add asteroid fields
-        const numAsteroidFields = Math.floor(Math.random() * 3); // 0-2 asteroid fields
-        
-        for (let i = 0; i < numAsteroidFields; i++) {
-            setTimeout(() => {
-                const asteroidField = this.createAsteroidField(sector);
-                this.asteroidFields.push(asteroidField);
-            }, numPlanets * 200 + i * 300); // Start after planets are created
-        }
-        
-        // Add some alien ships based on sector difficulty
-        const numAliens = 3 + Math.floor(Math.random() * sector.difficulty * 2);
-        
-        for (let i = 0; i < numAliens; i++) {
-            setTimeout(() => {
-                const alien = this.createAlienShip(sector);
-                this.aliens.push(alien);
-            }, numPlanets * 200 + numAsteroidFields * 300 + i * 100);
-        }
-        
-        // Add nebula
-        if (Math.random() > 0.5) {
-            setTimeout(() => {
-                const nebula = this.createNebula(sector);
-                this.nebulae.push(nebula);
-            }, numPlanets * 200 + numAsteroidFields * 300 + numAliens * 100);
-        }
-        
-        // Mark sector as populated
-        sector.isPopulated = true;
     }
     
     clearWorld() {
@@ -232,148 +272,251 @@ export class GameWorld {
     }
     
     createAsteroidField(sector) {
-        // Random position within sector
-        const position = this.getRandomPositionInSector(sector);
-        
-        // Random field properties
-        const radius = 200 + Math.random() * 400;
-        const density = 0.5 + Math.random() * 1.0;
-        
-        // Create asteroid field
-        const asteroidField = new AsteroidField({
-            scene: this.scene,
-            position: position,
-            radius: radius,
-            density: density,
-            physicsSystem: this.physicsSystem,
-            loadingManager: this.loadingManager
-        });
-        
-        return asteroidField;
+        try {
+            // Validate sector
+            if (!sector) {
+                console.warn('Invalid sector provided to createAsteroidField');
+                // Use default position
+                const defaultPosition = new THREE.Vector3(0, 0, 0);
+                
+                return new AsteroidField({
+                    scene: this.scene,
+                    position: defaultPosition,
+                    radius: 200,
+                    density: 0.5,
+                    physicsSystem: this.physicsSystem,
+                    loadingManager: this.loadingManager
+                });
+            }
+            
+            // Random position within sector
+            const position = this.getRandomPositionInSector(sector);
+            
+            // Random field properties
+            const radius = 200 + Math.random() * 400;
+            const density = 0.5 + Math.random() * 1.0;
+            
+            // Create asteroid field
+            const asteroidField = new AsteroidField({
+                scene: this.scene,
+                position: position,
+                radius: radius,
+                density: density,
+                physicsSystem: this.physicsSystem,
+                loadingManager: this.loadingManager
+            });
+            
+            return asteroidField;
+        } catch (error) {
+            console.error('Error in createAsteroidField:', error);
+            return null;
+        }
     }
     
     createNebula(sector) {
-        // Random position within sector
-        const position = this.getRandomPositionInSector(sector);
-        
-        // Random nebula properties
-        const radius = 300 + Math.random() * 600;
-        const density = 0.3 + Math.random() * 0.7;
-        
-        // Random color based on sector danger level
-        let color;
-        switch (sector.dangerLevel) {
-            case 1:
-                color = new THREE.Color(0x8080ff); // Blue
-                break;
-            case 2:
-                color = new THREE.Color(0x80ff80); // Green
-                break;
-            case 3:
-                color = new THREE.Color(0xffcc44); // Orange
-                break;
-            case 4:
-                color = new THREE.Color(0xff4040); // Red
-                break;
-            default:
-                color = new THREE.Color(0xaaaaff); // Default blue
+        try {
+            // Validate sector
+            if (!sector) {
+                console.warn('Invalid sector provided to createNebula');
+                // Use default position
+                const defaultPosition = new THREE.Vector3(0, 0, 0);
+                
+                return new Nebula({
+                    scene: this.scene,
+                    position: defaultPosition,
+                    radius: 300,
+                    density: 0.5,
+                    color: new THREE.Color(0xaaaaff),
+                    loadingManager: this.loadingManager
+                });
+            }
+            
+            // Random position within sector
+            const position = this.getRandomPositionInSector(sector);
+            
+            // Random nebula properties
+            const radius = 300 + Math.random() * 600;
+            const density = 0.3 + Math.random() * 0.7;
+            
+            // Random color based on sector difficulty level
+            let color;
+            const difficulty = sector.difficulty || 1;
+            
+            switch (difficulty) {
+                case 1:
+                    color = new THREE.Color(0x8080ff); // Blue
+                    break;
+                case 2:
+                    color = new THREE.Color(0x80ff80); // Green
+                    break;
+                case 3:
+                    color = new THREE.Color(0xffcc44); // Orange
+                    break;
+                case 4:
+                    color = new THREE.Color(0xff4040); // Red
+                    break;
+                default:
+                    color = new THREE.Color(0xaaaaff); // Default blue
+            }
+            
+            // Create nebula
+            const nebula = new Nebula({
+                scene: this.scene,
+                position: position,
+                radius: radius,
+                density: density,
+                color: color,
+                loadingManager: this.loadingManager
+            });
+            
+            return nebula;
+        } catch (error) {
+            console.error('Error in createNebula:', error);
+            return null;
         }
-        
-        // Create nebula
-        const nebula = new Nebula({
-            scene: this.scene,
-            position: position,
-            radius: radius,
-            density: density,
-            color: color,
-            loadingManager: this.loadingManager
-        });
-        
-        return nebula;
     }
     
     createAlienShip(sector) {
-        // Random position within sector
-        const position = this.getRandomPositionInSector(sector);
-        
-        // Enemy type based on sector difficulty
-        let enemyType;
-        const difficulty = sector.difficulty || 1;
-        
-        if (difficulty === 1) {
-            enemyType = 'scout';
-        } else if (difficulty === 2) {
-            enemyType = Math.random() > 0.3 ? 'scout' : 'fighter';
-        } else if (difficulty === 3) {
-            enemyType = Math.random() > 0.6 ? 'fighter' : 'cruiser';
-        } else {
-            enemyType = Math.random() > 0.7 ? 'cruiser' : 'fighter';
-        }
-        
-        // Create alien ship
-        const alien = new AlienShip({
-            scene: this.scene,
-            position: position,
-            type: enemyType,
-            physicsSystem: this.physicsSystem,
-            loadingManager: this.loadingManager
-        });
-        
-        // Set enemy properties
-        alien.setPatrolRadius(200 + Math.random() * 300);
-        alien.setMaxSpeed(1 + Math.random() * difficulty);
-        
-        // Add to physics system if available
-        if (this.physicsSystem) {
-            this.physicsSystem.addObject(alien);
-            if (this.physicsSystem.collisionGroups) {
-                alien.collisionGroup = this.physicsSystem.collisionGroups.alien;
-            }
-        }
-        
-        // Set callback for alien destruction
-        alien.onDestroyed = (position) => {
-            if (this.onEnemyDestroyed) {
-                this.onEnemyDestroyed(enemyType, position);
-            }
-            
-            // Remove from tracking arrays
-            const alienIndex = this.aliens.indexOf(alien);
-            if (alienIndex !== -1) {
-                this.aliens.splice(alienIndex, 1);
-            }
-            
-            // Respawn a new enemy after a delay in the same sector
-            setTimeout(() => {
-                if (this.sectors.includes(sector)) {
-                    const newAlien = this.createAlienShip(sector);
-                    this.aliens.push(newAlien);
+        try {
+            // Validate sector
+            if (!sector) {
+                console.warn('Invalid sector provided to createAlienShip');
+                // Use default position
+                const defaultPosition = new THREE.Vector3(0, 0, 0);
+                
+                // Create alien with default parameters
+                const alien = new AlienShip({
+                    scene: this.scene,
+                    position: defaultPosition,
+                    type: 'scout',
+                    physicsSystem: this.physicsSystem,
+                    loadingManager: this.loadingManager
+                });
+                
+                // Add to physics system
+                if (this.physicsSystem) {
+                    this.physicsSystem.addObject(alien);
                 }
-            }, 30000 + Math.random() * 60000); // 30-90 seconds respawn time
-        };
-        
-        return alien;
+                
+                return alien;
+            }
+            
+            // Random position within sector
+            const position = this.getRandomPositionInSector(sector);
+            
+            // Enemy type based on sector difficulty
+            let enemyType;
+            const difficulty = sector.difficulty || 1;
+            
+            if (difficulty === 1) {
+                enemyType = 'scout';
+            } else if (difficulty === 2) {
+                enemyType = Math.random() > 0.3 ? 'scout' : 'fighter';
+            } else if (difficulty === 3) {
+                enemyType = Math.random() > 0.6 ? 'fighter' : 'cruiser';
+            } else {
+                enemyType = Math.random() > 0.7 ? 'cruiser' : 'fighter';
+            }
+            
+            // Create alien ship
+            const alien = new AlienShip({
+                scene: this.scene,
+                position: position,
+                type: enemyType,
+                physicsSystem: this.physicsSystem,
+                loadingManager: this.loadingManager
+            });
+            
+            // Set enemy properties
+            if (alien.setPatrolRadius) {
+                alien.setPatrolRadius(200 + Math.random() * 300);
+            }
+            
+            if (alien.setMaxSpeed) {
+                alien.setMaxSpeed(1 + Math.random() * difficulty);
+            }
+            
+            // Add to physics system if available
+            if (this.physicsSystem) {
+                this.physicsSystem.addObject(alien);
+                if (this.physicsSystem.collisionGroups) {
+                    alien.collisionGroup = this.physicsSystem.collisionGroups.alien;
+                }
+            }
+            
+            // Set callback for alien destruction
+            alien.onDestroyed = (position) => {
+                if (this.onEnemyDestroyed) {
+                    this.onEnemyDestroyed(enemyType, position);
+                }
+                
+                // Remove from tracking arrays
+                const alienIndex = this.aliens.indexOf(alien);
+                if (alienIndex !== -1) {
+                    this.aliens.splice(alienIndex, 1);
+                }
+                
+                // Respawn a new enemy after a delay in the same sector
+                setTimeout(() => {
+                    if (this.sectors.includes(sector)) {
+                        try {
+                            const newAlien = this.createAlienShip(sector);
+                            this.aliens.push(newAlien);
+                        } catch (error) {
+                            console.error("Error respawning alien:", error);
+                        }
+                    }
+                }, 30000 + Math.random() * 60000); // 30-90 seconds respawn time
+            };
+            
+            return alien;
+        } catch (error) {
+            console.error('Error in createAlienShip:', error);
+            // Return a default alien at origin to prevent game crashes
+            try {
+                return new AlienShip({
+                    scene: this.scene,
+                    position: new THREE.Vector3(0, 0, 0),
+                    type: 'scout',
+                    physicsSystem: this.physicsSystem,
+                    loadingManager: this.loadingManager
+                });
+            } catch (fallbackError) {
+                console.error('Could not create fallback alien ship:', fallbackError);
+                return null;
+            }
+        }
     }
     
     getRandomPositionInSector(sector) {
-        // Safety check for sector
-        if (!sector || !sector.position) {
-            console.warn('Invalid sector provided to getRandomPositionInSector');
-            // Return a default position
+        try {
+            // Safety check for sector
+            if (!sector) {
+                console.warn('No sector provided to getRandomPositionInSector');
+                return new THREE.Vector3(0, 0, 0);
+            }
+            
+            // Safety check for sector position
+            if (!sector.position) {
+                console.warn('Sector has no position property');
+                return new THREE.Vector3(0, 0, 0);
+            }
+            
+            // Get random position within sector radius
+            const radius = sector.radius || 1000; // Default radius if not specified
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            const r = radius * Math.cbrt(Math.random()); // Cube root for more uniform distribution
+            
+            const x = sector.position.x + r * Math.sin(phi) * Math.cos(theta);
+            const y = sector.position.y + r * Math.sin(phi) * Math.sin(theta);
+            const z = sector.position.z + r * Math.cos(phi);
+            
+            return new THREE.Vector3(x, y, z);
+        } catch (error) {
+            console.error('Error in getRandomPositionInSector:', error);
             return new THREE.Vector3(0, 0, 0);
         }
-        
-        // Get random position within sector radius
-        const radius = sector.radius || 1000; // Default radius if not specified
-        const theta = Math.random() * Math.PI * 2;
-        const phi = Math.acos(2 * Math.random() - 1);
-        const r = radius * Math.cbrt(Math.random()); // Cube root for more uniform distribution
-        
-        const x = sector.position.x + r * Math.sin(phi) * Math.cos(theta);
-        const y = sector.position.y + r * Math.sin(phi) * Math.sin(theta);
-        const z = sector.position.z + r * Math.cos(phi);
-        
-        return new THREE.Vector3(x, y, z);
     }
     
     getSectorAt(position) {
