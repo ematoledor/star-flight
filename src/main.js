@@ -4275,3 +4275,301 @@ setTimeout(() => {
         showEmergencyNotification("Error creating solar system", "error");
     }
 }, 3000); // Wait 3 seconds before creating the solar system
+
+// Add this after the emergency solar system creation code
+
+// Enhance wormhole functionality
+setTimeout(() => {
+    console.log("Setting up enhanced wormhole functionality...");
+    
+    try {
+        // Try to get the game instance
+        const game = window.game;
+        
+        if (!game) {
+            console.error("Game not available for enhancing wormhole functionality");
+            return;
+        }
+        
+        // Create sectors if they don't exist
+        if (!game.gameWorld) {
+            game.gameWorld = {};
+        }
+        
+        if (!game.gameWorld.sectors) {
+            game.gameWorld.sectors = [
+                { name: "Solar System", position: new THREE.Vector3(0, 0, 0), difficulty: 1, radius: 3000, isPopulated: true },
+                { name: "Alpha Centauri", position: new THREE.Vector3(5000, 0, 0), difficulty: 2, radius: 1500, isPopulated: false },
+                { name: "Sirius System", position: new THREE.Vector3(0, 0, 5000), difficulty: 3, radius: 1800, isPopulated: false },
+                { name: "Orion Nebula", position: new THREE.Vector3(5000, 0, 5000), difficulty: 4, radius: 2000, isPopulated: false }
+            ];
+            
+            console.log("Created sectors for the game world");
+        }
+        
+        // Add getSectorAt method if it doesn't exist
+        if (!game.gameWorld.getSectorAt) {
+            game.gameWorld.getSectorAt = function(position) {
+                // Find which sector the position is in
+                for (const sector of this.sectors) {
+                    const distance = position.distanceTo(sector.position);
+                    if (distance <= sector.radius) {
+                        // Position is in this sector
+                        return { name: sector.name, sector: sector };
+                    }
+                }
+                
+                // Not in any sector
+                return { name: "Deep Space", sector: null };
+            };
+            
+            console.log("Added getSectorAt method to game world");
+        }
+        
+        // Create planets in other sectors
+        game.gameWorld.sectors.forEach((sector, index) => {
+            if (index === 0) return; // Skip Solar System, already populated
+            
+            if (!sector.isPopulated) {
+                console.log(`Populating sector: ${sector.name}`);
+                
+                // Create planets in this sector
+                const planetCount = 2 + Math.floor(Math.random() * 3); // 2-4 planets
+                
+                for (let i = 0; i < planetCount; i++) {
+                    // Random position within sector
+                    const radius = Math.random() * sector.radius * 0.8;
+                    const theta = Math.random() * Math.PI * 2;
+                    const phi = Math.random() * Math.PI;
+                    
+                    const x = sector.position.x + radius * Math.sin(phi) * Math.cos(theta);
+                    const y = sector.position.y + radius * Math.sin(phi) * Math.sin(theta);
+                    const z = sector.position.z + radius * Math.cos(phi);
+                    
+                    const position = new THREE.Vector3(x, y, z);
+                    
+                    // Random planet properties
+                    const planetRadius = 30 + Math.random() * 100;
+                    
+                    // Random color based on sector
+                    let color;
+                    switch (index) {
+                        case 1: // Alpha Centauri - reddish
+                            color = 0xff8866;
+                            break;
+                        case 2: // Sirius - bluish
+                            color = 0x66aaff;
+                            break;
+                        case 3: // Orion - greenish
+                            color = 0x66ffaa;
+                            break;
+                        default:
+                            color = 0xaaaaaa;
+                    }
+                    
+                    // Create the planet
+                    const planetGeometry = new THREE.SphereGeometry(planetRadius, 32, 32);
+                    const planetMaterial = new THREE.MeshBasicMaterial({ color: color });
+                    const planet = new THREE.Mesh(planetGeometry, planetMaterial);
+                    planet.position.copy(position);
+                    planet.name = `${sector.name} Planet ${i+1}`;
+                    
+                    // Add to scene
+                    game.scene.add(planet);
+                    
+                    // Add to planets array
+                    if (!game.gameWorld.planets) {
+                        game.gameWorld.planets = [];
+                    }
+                    
+                    game.gameWorld.planets.push(planet);
+                    console.log(`Created planet: ${planet.name} at position ${x.toFixed(0)}, ${y.toFixed(0)}, ${z.toFixed(0)}`);
+                }
+                
+                // Create a wormhole back to Solar System
+                const wormholePosition = new THREE.Vector3(
+                    sector.position.x + Math.random() * 500 - 250,
+                    sector.position.y + Math.random() * 500 - 250,
+                    sector.position.z + Math.random() * 500 - 250
+                );
+                
+                const wormholeGeometry = new THREE.TorusGeometry(100, 30, 16, 100);
+                const wormholeMaterial = new THREE.MeshBasicMaterial({ 
+                    color: 0x8800ff,
+                    transparent: true,
+                    opacity: 0.7
+                });
+                const wormhole = new THREE.Mesh(wormholeGeometry, wormholeMaterial);
+                wormhole.position.copy(wormholePosition);
+                wormhole.name = `Wormhole to Solar System`;
+                wormhole.userData = {
+                    type: 'wormhole',
+                    destination: new THREE.Vector3(0, 0, 0),
+                    destinationName: 'Solar System'
+                };
+                
+                // Add to scene
+                game.scene.add(wormhole);
+                
+                // Add to anomalies array
+                if (!game.gameWorld.anomalies) {
+                    game.gameWorld.anomalies = [];
+                }
+                
+                game.gameWorld.anomalies.push(wormhole);
+                console.log(`Created wormhole back to Solar System in ${sector.name}`);
+                
+                // Mark sector as populated
+                sector.isPopulated = true;
+            }
+        });
+        
+        // Update existing wormholes to have destinations
+        if (game.gameWorld.anomalies) {
+            game.gameWorld.anomalies.forEach(anomaly => {
+                if (anomaly.name === "Wormhole" && !anomaly.userData?.destination) {
+                    // Set destination to a random sector other than Solar System
+                    const sectors = game.gameWorld.sectors.filter(s => s.name !== "Solar System");
+                    const randomSector = sectors[Math.floor(Math.random() * sectors.length)];
+                    
+                    anomaly.userData = {
+                        type: 'wormhole',
+                        destination: randomSector.position.clone(),
+                        destinationName: randomSector.name
+                    };
+                    
+                    console.log(`Set wormhole destination to ${randomSector.name}`);
+                }
+            });
+        }
+        
+        // Add wormhole travel functionality
+        game.checkWormholeInteraction = function() {
+            if (!this.spacecraft || !this.gameWorld || !this.gameWorld.anomalies) return;
+            
+            const spacecraft = this.spacecraft;
+            
+            // Check each wormhole
+            this.gameWorld.anomalies.forEach(anomaly => {
+                if (anomaly.userData && anomaly.userData.type === 'wormhole') {
+                    const distance = spacecraft.position.distanceTo(anomaly.position);
+                    
+                    // If spacecraft is close to wormhole
+                    if (distance < 150) {
+                        console.log(`Spacecraft near wormhole to ${anomaly.userData.destinationName}`);
+                        
+                        // Show notification
+                        showEmergencyNotification(`Press E to enter wormhole to ${anomaly.userData.destinationName}`, "info");
+                        
+                        // Check if E key is pressed
+                        const handleWormholeKeyPress = (event) => {
+                            if (event.key === 'e' || event.key === 'E') {
+                                // Remove event listener
+                                document.removeEventListener('keydown', handleWormholeKeyPress);
+                                
+                                // Travel through wormhole
+                                this.travelThroughWormhole(anomaly);
+                            }
+                        };
+                        
+                        // Add event listener for E key
+                        document.addEventListener('keydown', handleWormholeKeyPress);
+                        
+                        // Remove event listener after 5 seconds
+                        setTimeout(() => {
+                            document.removeEventListener('keydown', handleWormholeKeyPress);
+                        }, 5000);
+                    }
+                }
+            });
+        };
+        
+        // Add wormhole travel method
+        game.travelThroughWormhole = function(wormhole) {
+            if (!this.spacecraft || !wormhole.userData || !wormhole.userData.destination) return;
+            
+            console.log(`Traveling through wormhole to ${wormhole.userData.destinationName}`);
+            
+            // Show wormhole travel effect
+            this.showWormholeTravelEffect();
+            
+            // Teleport spacecraft to destination
+            setTimeout(() => {
+                // Add some random offset to avoid spawning inside objects
+                const offset = new THREE.Vector3(
+                    Math.random() * 200 - 100,
+                    Math.random() * 200 - 100,
+                    Math.random() * 200 - 100
+                );
+                
+                this.spacecraft.position.copy(wormhole.userData.destination).add(offset);
+                this.spacecraft.velocity.set(0, 0, 0); // Reset velocity
+                
+                showEmergencyNotification(`Arrived at ${wormhole.userData.destinationName}`, "info");
+            }, 2000);
+        };
+        
+        // Add wormhole travel effect
+        game.showWormholeTravelEffect = function() {
+            // Create a full-screen effect
+            const overlay = document.createElement('div');
+            overlay.style.position = 'fixed';
+            overlay.style.top = '0';
+            overlay.style.left = '0';
+            overlay.style.width = '100%';
+            overlay.style.height = '100%';
+            overlay.style.backgroundColor = 'rgba(136, 0, 255, 0)';
+            overlay.style.zIndex = '9999';
+            overlay.style.transition = 'background-color 1s ease-in-out';
+            
+            document.body.appendChild(overlay);
+            
+            // Fade in
+            setTimeout(() => {
+                overlay.style.backgroundColor = 'rgba(136, 0, 255, 0.8)';
+            }, 10);
+            
+            // Show wormhole travel text
+            const travelText = document.createElement('div');
+            travelText.style.position = 'absolute';
+            travelText.style.top = '50%';
+            travelText.style.left = '50%';
+            travelText.style.transform = 'translate(-50%, -50%)';
+            travelText.style.color = 'white';
+            travelText.style.fontSize = '24px';
+            travelText.style.fontFamily = 'Arial, sans-serif';
+            travelText.style.textAlign = 'center';
+            travelText.innerHTML = 'Traveling through wormhole...<br>Please wait';
+            
+            overlay.appendChild(travelText);
+            
+            // Fade out and remove
+            setTimeout(() => {
+                overlay.style.backgroundColor = 'rgba(136, 0, 255, 0)';
+                
+                setTimeout(() => {
+                    document.body.removeChild(overlay);
+                }, 1000);
+            }, 1500);
+        };
+        
+        // Add wormhole checking to update loop
+        const originalUpdate = game.update;
+        
+        if (originalUpdate) {
+            game.update = function(time, delta) {
+                // Call original update
+                originalUpdate.call(this, time, delta);
+                
+                // Check for wormhole interaction
+                this.checkWormholeInteraction();
+            };
+        }
+        
+        console.log("Enhanced wormhole functionality set up successfully");
+        showEmergencyNotification("Wormhole travel system activated", "info");
+        
+    } catch (error) {
+        console.error("Error setting up enhanced wormhole functionality:", error);
+    }
+}, 5000); // Wait 5 seconds before setting up
