@@ -4,6 +4,21 @@ import { AlienShip } from '../entities/AlienShip.js';
 import { AsteroidField } from '../components/AsteroidField.js';
 import { Nebula } from '../components/Nebula.js';
 
+// Fallback classes in case of import failures
+class FallbackAlienShip extends THREE.Object3D {
+    constructor(config) {
+        super();
+        this.position.copy(config.position || new THREE.Vector3(0, 0, 0));
+        if (config.scene) {
+            config.scene.add(this);
+        }
+        this.setPatrolRadius = () => {};
+        this.setMaxSpeed = () => {};
+        this.onDestroyed = () => {};
+        this.update = () => {};
+    }
+}
+
 export class GameWorld {
     constructor(scene, loadingManager, physicsSystem) {
         this.scene = scene;
@@ -121,20 +136,25 @@ export class GameWorld {
             }
             
             // Add some alien ships based on sector difficulty
-            const numAliens = 3 + Math.floor(Math.random() * (sector.difficulty || 1) * 2);
+            const numAliens = Math.min(3 + Math.floor(Math.random() * (sector.difficulty || 1) * 2), 10);
             
-            for (let i = 0; i < numAliens; i++) {
-                setTimeout(() => {
-                    try {
-                        // Create alien ship with try-catch to handle errors
-                        const alien = this.createAlienShip(sector);
-                        if (alien) {
-                            this.aliens.push(alien);
+            // Verify the AlienShip class is loaded and method exists
+            if (typeof this.createAlienShip === 'function') {
+                for (let i = 0; i < numAliens; i++) {
+                    setTimeout(() => {
+                        try {
+                            // Create alien ship with try-catch to handle errors
+                            const alien = this.createAlienShip(sector);
+                            if (alien) {
+                                this.aliens.push(alien);
+                            }
+                        } catch (error) {
+                            console.error("Error creating alien ship:", error);
                         }
-                    } catch (error) {
-                        console.error("Error creating alien ship:", error);
-                    }
-                }, numPlanets * 200 + numAsteroidFields * 300 + i * 100);
+                    }, numPlanets * 200 + numAsteroidFields * 300 + i * 100);
+                }
+            } else {
+                console.warn("createAlienShip method not available - skipping alien creation");
             }
             
             // Add nebula
@@ -378,6 +398,9 @@ export class GameWorld {
     
     createAlienShip(sector) {
         try {
+            // Handle missing AlienShip class
+            const ShipClass = typeof AlienShip === 'function' ? AlienShip : FallbackAlienShip;
+            
             // Validate sector
             if (!sector) {
                 console.warn('Invalid sector provided to createAlienShip');
@@ -385,7 +408,7 @@ export class GameWorld {
                 const defaultPosition = new THREE.Vector3(0, 0, 0);
                 
                 // Create alien with default parameters
-                const alien = new AlienShip({
+                const alien = new ShipClass({
                     scene: this.scene,
                     position: defaultPosition,
                     type: 'scout',
@@ -395,7 +418,11 @@ export class GameWorld {
                 
                 // Add to physics system
                 if (this.physicsSystem) {
-                    this.physicsSystem.addObject(alien);
+                    try {
+                        this.physicsSystem.addObject(alien);
+                    } catch (physicsError) {
+                        console.error('Error adding alien to physics system:', physicsError);
+                    }
                 }
                 
                 return alien;
@@ -419,7 +446,7 @@ export class GameWorld {
             }
             
             // Create alien ship
-            const alien = new AlienShip({
+            const alien = new ShipClass({
                 scene: this.scene,
                 position: position,
                 type: enemyType,
@@ -427,94 +454,129 @@ export class GameWorld {
                 loadingManager: this.loadingManager
             });
             
-            // Set enemy properties
-            if (alien.setPatrolRadius) {
-                alien.setPatrolRadius(200 + Math.random() * 300);
+            // Set enemy properties - use try/catch for each method call
+            try {
+                if (typeof alien.setPatrolRadius === 'function') {
+                    alien.setPatrolRadius(200 + Math.random() * 300);
+                }
+            } catch (error) {
+                console.warn('Error setting patrol radius:', error);
             }
             
-            if (alien.setMaxSpeed) {
-                alien.setMaxSpeed(1 + Math.random() * difficulty);
+            try {
+                if (typeof alien.setMaxSpeed === 'function') {
+                    alien.setMaxSpeed(1 + Math.random() * difficulty);
+                }
+            } catch (error) {
+                console.warn('Error setting max speed:', error);
             }
             
             // Add to physics system if available
             if (this.physicsSystem) {
-                this.physicsSystem.addObject(alien);
-                if (this.physicsSystem.collisionGroups) {
-                    alien.collisionGroup = this.physicsSystem.collisionGroups.alien;
+                try {
+                    this.physicsSystem.addObject(alien);
+                    if (this.physicsSystem.collisionGroups) {
+                        alien.collisionGroup = this.physicsSystem.collisionGroups.alien;
+                    }
+                } catch (physicsError) {
+                    console.error('Error adding alien to physics system:', physicsError);
                 }
             }
             
             // Set callback for alien destruction
-            alien.onDestroyed = (position) => {
-                if (this.onEnemyDestroyed) {
-                    this.onEnemyDestroyed(enemyType, position);
-                }
-                
-                // Remove from tracking arrays
-                const alienIndex = this.aliens.indexOf(alien);
-                if (alienIndex !== -1) {
-                    this.aliens.splice(alienIndex, 1);
-                }
-                
-                // Respawn a new enemy after a delay in the same sector
-                setTimeout(() => {
-                    if (this.sectors.includes(sector)) {
-                        try {
-                            const newAlien = this.createAlienShip(sector);
-                            this.aliens.push(newAlien);
-                        } catch (error) {
-                            console.error("Error respawning alien:", error);
+            try {
+                alien.onDestroyed = (position) => {
+                    try {
+                        if (this.onEnemyDestroyed) {
+                            this.onEnemyDestroyed(enemyType, position);
                         }
+                        
+                        // Remove from tracking arrays
+                        const alienIndex = this.aliens.indexOf(alien);
+                        if (alienIndex !== -1) {
+                            this.aliens.splice(alienIndex, 1);
+                        }
+                        
+                        // Respawn a new enemy after a delay in the same sector
+                        setTimeout(() => {
+                            if (this.sectors.includes(sector)) {
+                                try {
+                                    const newAlien = this.createAlienShip(sector);
+                                    if (newAlien) {
+                                        this.aliens.push(newAlien);
+                                    }
+                                } catch (respawnError) {
+                                    console.error("Error respawning alien:", respawnError);
+                                }
+                            }
+                        }, 30000 + Math.random() * 60000); // 30-90 seconds respawn time
+                    } catch (callbackError) {
+                        console.error('Error in alien destroyed callback:', callbackError);
                     }
-                }, 30000 + Math.random() * 60000); // 30-90 seconds respawn time
-            };
+                };
+            } catch (onDestroyedError) {
+                console.warn('Error setting onDestroyed callback:', onDestroyedError);
+            }
             
             return alien;
         } catch (error) {
-            console.error('Error in createAlienShip:', error);
-            // Return a default alien at origin to prevent game crashes
+            console.error('Critical error in createAlienShip:', error);
+            // Return a minimal fallback object that won't crash the game
             try {
-                return new AlienShip({
+                return new FallbackAlienShip({
                     scene: this.scene,
-                    position: new THREE.Vector3(0, 0, 0),
-                    type: 'scout',
-                    physicsSystem: this.physicsSystem,
-                    loadingManager: this.loadingManager
+                    position: new THREE.Vector3(0, 0, 0)
                 });
             } catch (fallbackError) {
                 console.error('Could not create fallback alien ship:', fallbackError);
-                return null;
+                return new THREE.Object3D(); // Ultimate fallback
             }
         }
     }
     
     getRandomPositionInSector(sector) {
         try {
-            // Safety check for sector
+            // Safety check for sector - absolutely ensure we return a valid Vector3
             if (!sector) {
-                console.warn('No sector provided to getRandomPositionInSector');
+                console.warn('No sector provided to getRandomPositionInSector, returning default position');
                 return new THREE.Vector3(0, 0, 0);
             }
             
             // Safety check for sector position
-            if (!sector.position) {
-                console.warn('Sector has no position property');
+            if (!sector.position || typeof sector.position.x !== 'number') {
+                console.warn('Sector has invalid position property, returning default position');
                 return new THREE.Vector3(0, 0, 0);
             }
             
-            // Get random position within sector radius
-            const radius = sector.radius || 1000; // Default radius if not specified
-            const theta = Math.random() * Math.PI * 2;
-            const phi = Math.acos(2 * Math.random() - 1);
-            const r = radius * Math.cbrt(Math.random()); // Cube root for more uniform distribution
+            // Ensure we have a valid radius
+            const radius = (sector.radius && typeof sector.radius === 'number') ? sector.radius : 1000;
             
-            const x = sector.position.x + r * Math.sin(phi) * Math.cos(theta);
-            const y = sector.position.y + r * Math.sin(phi) * Math.sin(theta);
-            const z = sector.position.z + r * Math.cos(phi);
-            
-            return new THREE.Vector3(x, y, z);
+            // Get random position within sector radius with defensive coding
+            try {
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                const r = radius * Math.cbrt(Math.random()); // Cube root for more uniform distribution
+                
+                const x = sector.position.x + r * Math.sin(phi) * Math.cos(theta);
+                const y = sector.position.y + r * Math.sin(phi) * Math.sin(theta);
+                const z = sector.position.z + r * Math.cos(phi);
+                
+                // Final sanity check - if any coordinates are NaN or infinite, return default
+                if (isNaN(x) || isNaN(y) || isNaN(z) || 
+                    !isFinite(x) || !isFinite(y) || !isFinite(z)) {
+                    console.warn('Generated invalid coordinates in getRandomPositionInSector, using fallback');
+                    return new THREE.Vector3(sector.position.x, sector.position.y, sector.position.z);
+                }
+                
+                return new THREE.Vector3(x, y, z);
+            } catch (innerError) {
+                console.error('Error calculating random position:', innerError);
+                // Return the sector position as fallback
+                return new THREE.Vector3(sector.position.x, sector.position.y, sector.position.z);
+            }
         } catch (error) {
-            console.error('Error in getRandomPositionInSector:', error);
+            console.error('Critical error in getRandomPositionInSector:', error);
+            // Absolute fallback to origin
             return new THREE.Vector3(0, 0, 0);
         }
     }

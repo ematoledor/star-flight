@@ -256,12 +256,21 @@ class Game {
         console.log("Combat system initialized");
         
         // 4. Initialize game world with all required systems
-        this.gameWorld = new GameWorld(
-            this.scene,
-            this.loadingManager,
-            this.physicsSystem
-        );
-        console.log("Game world initialized");
+        try {
+            this.gameWorld = new GameWorld(
+                this.scene,
+                this.loadingManager,
+                this.physicsSystem
+            );
+            console.log("Game world initialized");
+        } catch (error) {
+            console.error("Error initializing game world:", error);
+            // Create a minimal game world as fallback
+            this.gameWorld = {
+                update: () => {},
+                reset: () => {}
+            };
+        }
         
         // 5. Initialize player spacecraft
         try {
