@@ -1176,148 +1176,13 @@ class Game {
     
     // Update exploration UI
     updateExplorationUI() {
-        // Update exploration score display
-        const scoreElement = document.getElementById('exploration-score');
-        if (scoreElement) {
-            scoreElement.textContent = this.explorationScore;
-        } else {
-            // Create exploration score display if it doesn't exist
-            this.createExplorationUI();
-        }
-        
-        // Update discoveries list
-        this.updateDiscoveriesList();
-    }
-    
-    // Create exploration UI
-    createExplorationUI() {
-        // Create exploration panel
-        const explorationPanel = document.createElement('div');
-        explorationPanel.id = 'exploration-panel';
-        explorationPanel.style.position = 'absolute';
-        explorationPanel.style.top = '10px';
-        explorationPanel.style.right = '10px';
-        explorationPanel.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-        explorationPanel.style.color = '#0ff';
-        explorationPanel.style.padding = '10px';
-        explorationPanel.style.borderRadius = '5px';
-        explorationPanel.style.fontFamily = 'Arial, sans-serif';
-        explorationPanel.style.zIndex = '100';
-        explorationPanel.style.minWidth = '200px';
-        
-        // Create score display
-        const scoreContainer = document.createElement('div');
-        scoreContainer.style.display = 'flex';
-        scoreContainer.style.justifyContent = 'space-between';
-        scoreContainer.style.marginBottom = '5px';
-        
-        const scoreLabel = document.createElement('span');
-        scoreLabel.textContent = 'Exploration Score:';
-        
-        const scoreValue = document.createElement('span');
-        scoreValue.id = 'exploration-score';
-        scoreValue.textContent = this.explorationScore;
-        
-        scoreContainer.appendChild(scoreLabel);
-        scoreContainer.appendChild(scoreValue);
-        
-        // Create discoveries container
-        const discoveriesContainer = document.createElement('div');
-        discoveriesContainer.id = 'discoveries-container';
-        
-        // Create toggle button
-        const toggleButton = document.createElement('button');
-        toggleButton.textContent = 'Show Discoveries';
-        toggleButton.style.backgroundColor = '#333';
-        toggleButton.style.color = 'white';
-        toggleButton.style.border = '1px solid #666';
-        toggleButton.style.borderRadius = '3px';
-        toggleButton.style.padding = '5px 10px';
-        toggleButton.style.marginTop = '5px';
-        toggleButton.style.cursor = 'pointer';
-        toggleButton.style.width = '100%';
-        
-        // Toggle discoveries visibility
-        toggleButton.onclick = () => {
-            const discoveriesList = document.getElementById('discoveries-list');
-            if (discoveriesList.style.display === 'none') {
-                discoveriesList.style.display = 'block';
-                toggleButton.textContent = 'Hide Discoveries';
-            } else {
-                discoveriesList.style.display = 'none';
-                toggleButton.textContent = 'Show Discoveries';
-            }
-        };
-        
-        // Create discoveries list
-        const discoveriesList = document.createElement('div');
-        discoveriesList.id = 'discoveries-list';
-        discoveriesList.style.display = 'none';
-        discoveriesList.style.marginTop = '10px';
-        discoveriesList.style.maxHeight = '300px';
-        discoveriesList.style.overflowY = 'auto';
-        
-        // Append elements
-        discoveriesContainer.appendChild(toggleButton);
-        discoveriesContainer.appendChild(discoveriesList);
-        
-        explorationPanel.appendChild(scoreContainer);
-        explorationPanel.appendChild(discoveriesContainer);
-        
-        // Add to document
-        document.body.appendChild(explorationPanel);
-        
-        // Update discoveries list
-        this.updateDiscoveriesList();
-    }
-    
-    // Update discoveries list
-    updateDiscoveriesList() {
-        const discoveriesList = document.getElementById('discoveries-list');
-        if (!discoveriesList) return;
-        
-        // Clear current list
-        discoveriesList.innerHTML = '';
-        
-        // Add sections for different discovery types
-        const sections = [
-            { title: 'Sectors', items: Array.from(this.discoveredSectors), icon: '🌌' },
-            { title: 'Planets', items: Array.from(this.discoveredPlanets), icon: '🪐' },
-            { title: 'Anomalies', items: Array.from(this.discoveredAnomalies), icon: '⚠️' }
-        ];
-        
-        sections.forEach(section => {
-            if (section.items.length > 0) {
-                // Create section header
-                const sectionHeader = document.createElement('div');
-                sectionHeader.style.fontWeight = 'bold';
-                sectionHeader.style.marginTop = '10px';
-                sectionHeader.style.marginBottom = '5px';
-                sectionHeader.style.borderBottom = '1px solid #555';
-                sectionHeader.textContent = `${section.icon} ${section.title} (${section.items.length})`;
-                
-                discoveriesList.appendChild(sectionHeader);
-                
-                // Create items
-                section.items.forEach(item => {
-                    const itemElement = document.createElement('div');
-                    itemElement.style.padding = '3px 0';
-                    itemElement.style.paddingLeft = '15px';
-                    itemElement.textContent = item;
-                    
-                    discoveriesList.appendChild(itemElement);
-                });
-            }
-        });
-        
-        // If no discoveries yet
-        if (discoveriesList.children.length === 0) {
-            const noDiscoveries = document.createElement('div');
-            noDiscoveries.style.fontStyle = 'italic';
-            noDiscoveries.style.padding = '10px 0';
-            noDiscoveries.textContent = 'No discoveries yet. Explore the universe!';
-            
-            discoveriesList.appendChild(noDiscoveries);
+        if (this.uiManager) {
+            this.uiManager.updateExplorationScore(this.explorationScore);
+            this.uiManager.updateDiscoveries({
+                sectors: Array.from(this.discoveredSectors),
+                planets: Array.from(this.discoveredPlanets),
+                anomalies: Array.from(this.discoveredAnomalies)
+            });
         }
     }
     
@@ -1682,278 +1547,55 @@ class Game {
         console.log("Initializing UI...");
         
         try {
-            // Create UI container
-            const uiContainer = document.createElement('div');
-            uiContainer.id = 'game-ui';
-            uiContainer.style.position = 'absolute';
-            uiContainer.style.width = '100%';
-            uiContainer.style.height = '100%';
-            uiContainer.style.pointerEvents = 'none';
-            document.body.appendChild(uiContainer);
-            
-            // Create health bar
-            this.healthBar = document.createElement('div');
-            this.healthBar.id = 'health-bar';
-            this.healthBar.className = 'status-bar';
-            this.healthBar.style.position = 'absolute';
-            this.healthBar.style.bottom = '20px';
-            this.healthBar.style.left = '20px';
-            this.healthBar.style.width = '200px';
-            this.healthBar.style.height = '15px';
-            this.healthBar.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-            this.healthBar.style.border = '1px solid #444';
-            this.healthBar.style.borderRadius = '3px';
-            this.healthBar.style.overflow = 'hidden';
-            
-            const healthFill = document.createElement('div');
-            healthFill.id = 'health-fill';
-            healthFill.style.width = '100%';
-            healthFill.style.height = '100%';
-            healthFill.style.backgroundColor = '#f00';
-            healthFill.style.transition = 'width 0.3s ease-in-out';
-            this.healthBar.appendChild(healthFill);
-            
-            const healthLabel = document.createElement('div');
-            healthLabel.textContent = 'HULL';
-            healthLabel.style.position = 'absolute';
-            healthLabel.style.top = '0';
-            healthLabel.style.left = '5px';
-            healthLabel.style.color = 'white';
-            healthLabel.style.fontSize = '10px';
-            healthLabel.style.fontFamily = 'Arial, sans-serif';
-            healthLabel.style.lineHeight = '15px';
-            this.healthBar.appendChild(healthLabel);
-            
-            // Create shield bar
-            this.shieldBar = document.createElement('div');
-            this.shieldBar.id = 'shield-bar';
-            this.shieldBar.className = 'status-bar';
-            this.shieldBar.style.position = 'absolute';
-            this.shieldBar.style.bottom = '40px';
-            this.shieldBar.style.left = '20px';
-            this.shieldBar.style.width = '200px';
-            this.shieldBar.style.height = '15px';
-            this.shieldBar.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-            this.shieldBar.style.border = '1px solid #444';
-            this.shieldBar.style.borderRadius = '3px';
-            this.shieldBar.style.overflow = 'hidden';
-            
-            const shieldFill = document.createElement('div');
-            shieldFill.id = 'shield-fill';
-            shieldFill.style.width = '100%';
-            shieldFill.style.height = '100%';
-            shieldFill.style.backgroundColor = '#0af';
-            shieldFill.style.transition = 'width 0.3s ease-in-out';
-            this.shieldBar.appendChild(shieldFill);
-            
-            const shieldLabel = document.createElement('div');
-            shieldLabel.textContent = 'SHIELD';
-            shieldLabel.style.position = 'absolute';
-            shieldLabel.style.top = '0';
-            shieldLabel.style.left = '5px';
-            shieldLabel.style.color = 'white';
-            shieldLabel.style.fontSize = '10px';
-            shieldLabel.style.fontFamily = 'Arial, sans-serif';
-            shieldLabel.style.lineHeight = '15px';
-            this.shieldBar.appendChild(shieldLabel);
-            
-            // Create energy bar
-            this.energyBar = document.createElement('div');
-            this.energyBar.id = 'energy-bar';
-            this.energyBar.className = 'status-bar';
-            this.energyBar.style.position = 'absolute';
-            this.energyBar.style.bottom = '60px';
-            this.energyBar.style.left = '20px';
-            this.energyBar.style.width = '200px';
-            this.energyBar.style.height = '15px';
-            this.energyBar.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-            this.energyBar.style.border = '1px solid #444';
-            this.energyBar.style.borderRadius = '3px';
-            this.energyBar.style.overflow = 'hidden';
-            
-            const energyFill = document.createElement('div');
-            energyFill.id = 'energy-fill';
-            energyFill.style.width = '100%';
-            energyFill.style.height = '100%';
-            energyFill.style.backgroundColor = '#ff0';
-            energyFill.style.transition = 'width 0.3s ease-in-out';
-            this.energyBar.appendChild(energyFill);
-            
-            const energyLabel = document.createElement('div');
-            energyLabel.textContent = 'ENERGY';
-            energyLabel.style.position = 'absolute';
-            energyLabel.style.top = '0';
-            energyLabel.style.left = '5px';
-            energyLabel.style.color = 'white';
-            energyLabel.style.fontSize = '10px';
-            energyLabel.style.fontFamily = 'Arial, sans-serif';
-            energyLabel.style.lineHeight = '15px';
-            this.energyBar.appendChild(energyLabel);
-            
-            // Create FPS counter
-            this.fpsCounter = document.createElement('div');
-            this.fpsCounter.id = 'fps-counter';
-            this.fpsCounter.style.position = 'absolute';
-            this.fpsCounter.style.top = '10px';
-            this.fpsCounter.style.left = '10px';
-            this.fpsCounter.style.color = 'white';
-            this.fpsCounter.style.fontSize = '12px';
-            this.fpsCounter.style.fontFamily = 'monospace';
-            this.fpsCounter.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-            this.fpsCounter.style.padding = '5px';
-            this.fpsCounter.style.borderRadius = '3px';
-            this.fpsCounter.textContent = 'FPS: 0';
-            
-            // Create sector info
-            this.sectorInfo = document.createElement('div');
-            this.sectorInfo.id = 'sector-info';
-            this.sectorInfo.style.position = 'absolute';
-            this.sectorInfo.style.top = '10px';
-            this.sectorInfo.style.left = '50%';
-            this.sectorInfo.style.transform = 'translateX(-50%)';
-            this.sectorInfo.style.color = 'white';
-            this.sectorInfo.style.fontSize = '14px';
-            this.sectorInfo.style.fontFamily = 'Arial, sans-serif';
-            this.sectorInfo.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-            this.sectorInfo.style.padding = '5px 15px';
-            this.sectorInfo.style.borderRadius = '3px';
-            this.sectorInfo.textContent = 'UNKNOWN SECTOR';
-            
-            // Create notification area
-            this.notificationArea = document.createElement('div');
-            this.notificationArea.id = 'notification-area';
-            this.notificationArea.style.position = 'absolute';
-            this.notificationArea.style.bottom = '100px';
-            this.notificationArea.style.left = '50%';
-            this.notificationArea.style.transform = 'translateX(-50%)';
-            this.notificationArea.style.width = '80%';
-            this.notificationArea.style.maxWidth = '800px';
-            this.notificationArea.style.display = 'flex';
-            this.notificationArea.style.flexDirection = 'column';
-            this.notificationArea.style.alignItems = 'center';
-            this.notificationArea.style.pointerEvents = 'none';
-            
-            // Add elements to UI container
-            uiContainer.appendChild(this.healthBar);
-            uiContainer.appendChild(this.shieldBar);
-            uiContainer.appendChild(this.energyBar);
-            uiContainer.appendChild(this.fpsCounter);
-            uiContainer.appendChild(this.sectorInfo);
-            uiContainer.appendChild(this.notificationArea);
-            
-            // Create exploration UI
-            this.createExplorationUI();
-            
-            console.log("UI initialized");
+            // Create UI manager using the imported UIManager class
+            if (this.spacecraft && this.gameWorld) {
+                this.uiManager = new UIManager(this.spacecraft, this.gameWorld);
+                console.log("UI manager initialized");
+            } else {
+                console.warn("Cannot initialize UI manager: spacecraft or gameWorld not available");
+                // Create a minimal UI manager
+                this.uiManager = new UIManager(null, null);
+            }
         } catch (error) {
             console.error("Error initializing UI:", error);
         }
     }
 
-    // Show notification message
+    // Show notification message - delegate to UIManager
     showNotification(message, type = 'info', duration = 5000) {
-        // Create notification element
-        const notification = document.createElement('div');
-        notification.className = `notification notification-${type}`;
-        notification.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-        notification.style.color = type === 'danger' ? '#ff4444' : 
-                                  type === 'warning' ? '#ffaa00' : 
-                                  type === 'success' ? '#44ff44' : '#44aaff';
-        notification.style.padding = '10px 20px';
-        notification.style.borderRadius = '5px';
-        notification.style.marginBottom = '10px';
-        notification.style.maxWidth = '100%';
-        notification.style.boxShadow = '0 0 10px rgba(0, 0, 0, 0.5)';
-        notification.style.fontFamily = 'Arial, sans-serif';
-        notification.style.fontSize = '14px';
-        notification.style.textAlign = 'center';
-        notification.style.transition = 'opacity 0.5s ease-in-out, transform 0.5s ease-in-out';
-        notification.style.opacity = '0';
-        notification.style.transform = 'translateY(20px)';
-        notification.textContent = message;
-        
-        // Add to notification area
-        const notificationArea = document.getElementById('notification-area');
-        if (notificationArea) {
-            notificationArea.appendChild(notification);
-            
-            // Animate in
-            setTimeout(() => {
-                notification.style.opacity = '1';
-                notification.style.transform = 'translateY(0)';
-            }, 10);
-            
-            // Remove after duration (if not permanent)
-            if (duration > 0) {
-                setTimeout(() => {
-                    notification.style.opacity = '0';
-                    notification.style.transform = 'translateY(-20px)';
-                    
-                    // Remove from DOM after fade out
-                    setTimeout(() => {
-                        if (notification.parentNode) {
-                            notification.parentNode.removeChild(notification);
-                        }
-                    }, 500);
-                }, duration);
-            }
+        if (this.uiManager) {
+            this.uiManager.showNotification(message, type, { duration });
         } else {
-            console.warn("Notification area not found, message:", message);
+            console.log(`Notification (${type}): ${message}`);
         }
     }
 
-    // Update health UI
+    // Update health UI - delegate to UIManager
     updateHealthUI() {
-        if (!this.spacecraft) return;
-        
-        // Update hull health
-        const healthFill = document.getElementById('health-fill');
-        if (healthFill) {
-            const healthPercent = Math.max(0, Math.min(100, this.spacecraft.hull));
-            healthFill.style.width = `${healthPercent}%`;
-            
-            // Change color based on health
-            if (healthPercent < 20) {
-                healthFill.style.backgroundColor = '#f00'; // Red
-            } else if (healthPercent < 50) {
-                healthFill.style.backgroundColor = '#f80'; // Orange
-            } else {
-                healthFill.style.backgroundColor = '#0f0'; // Green
-            }
-        }
-        
-        // Update shield
-        const shieldFill = document.getElementById('shield-fill');
-        if (shieldFill) {
-            const shieldPercent = Math.max(0, Math.min(100, this.spacecraft.shields));
-            shieldFill.style.width = `${shieldPercent}%`;
-        }
-        
-        // Update energy
-        const energyFill = document.getElementById('energy-fill');
-        if (energyFill) {
-            const energyPercent = Math.max(0, Math.min(100, this.spacecraft.energy));
-            energyFill.style.width = `${energyPercent}%`;
+        if (this.uiManager && this.spacecraft) {
+            this.uiManager.updateHealth(this.spacecraft.hull, this.spacecraft.shields, this.spacecraft.energy);
         }
     }
 
-    // Update sector info
+    // Update sector info - delegate to UIManager
     updateSectorInfo() {
-        if (!this.sectorInfo || !this.gameWorld) return;
-        
-        // Get current sector
-        let sectorName = "UNKNOWN SECTOR";
-        
-        if (this.spacecraft && this.gameWorld.getCurrentSector) {
-            const sectorInfo = this.gameWorld.getCurrentSector(this.spacecraft.position);
-            if (sectorInfo && sectorInfo.name) {
-                sectorName = sectorInfo.name.toUpperCase();
+        if (this.uiManager && this.gameWorld) {
+            let sectorName = "UNKNOWN SECTOR";
+            
+            if (this.spacecraft && this.gameWorld.getCurrentSector) {
+                const sectorInfo = this.gameWorld.getCurrentSector(this.spacecraft.position);
+                if (sectorInfo && sectorInfo.name) {
+                    sectorName = sectorInfo.name;
+                }
+            } else if (this.gameWorld.currentSector && this.gameWorld.currentSector.name) {
+                sectorName = this.gameWorld.currentSector.name;
             }
-        } else if (this.gameWorld.currentSector && this.gameWorld.currentSector.name) {
-            sectorName = this.gameWorld.currentSector.name.toUpperCase();
+            
+            this.uiManager.updateSectorInfo({
+                name: sectorName,
+                position: this.spacecraft ? this.spacecraft.position : null
+            });
         }
-        
-        this.sectorInfo.textContent = sectorName;
     }
 }
 
