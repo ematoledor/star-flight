@@ -311,4 +311,18 @@ export class Spacecraft extends THREE.Object3D {
     replenishAmmo(amount) {
         this.ammo = Math.min(this.maxAmmo, this.ammo + amount);
     }
+    
+    reset() {
+        // Reset spacecraft to initial state
+        this.velocity.set(0, 0, 0);
+        this.position.set(0, 0, 0);
+        this.quaternion.set(0, 0, 0, 1); // Reset rotation
+        
+        // Reset health, ammo, etc.
+        this.health = this.maxHealth;
+        this.ammo = this.maxAmmo;
+        
+        // Reset any other properties that need resetting
+        console.log("Spacecraft reset to initial state");
+    }
 } 

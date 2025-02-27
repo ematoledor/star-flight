@@ -250,9 +250,12 @@ class Game {
         }
         
         // 8. Initialize UI manager
-        this.uiManager = new UIManager(this.spacecraft, this.gameWorld);
-        this.uiManager.initialize();
-        console.log("UI manager initialized");
+        try {
+            this.uiManager = new UIManager(this.spacecraft, this.gameWorld);
+            console.log("UI manager initialized");
+        } catch (error) {
+            console.error("Error initializing UI manager:", error);
+        }
         
         // 9. Initialize upgrade system
         this.upgradeSystem = new UpgradeSystem(

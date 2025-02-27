@@ -698,4 +698,19 @@ export class CombatSystem {
         // Make visible
         impact.sprite.visible = true;
     }
+    
+    /**
+     * Reset the combat system to its initial state
+     */
+    reset() {
+        // Clear targets
+        this.targets = [];
+        this.currentTargetIndex = -1;
+        this.currentTarget = null;
+        
+        // Clear any active weapons or effects
+        // Reset any other combat system state
+        
+        console.log("Combat system reset");
+    }
 } 
