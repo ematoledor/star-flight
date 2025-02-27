@@ -5,6 +5,14 @@ export class PhysicsSystem {
         this.objects = [];
         this.gravity = 0; // Zero gravity in space
         this.planets = []; // Will store planets and their gravitational influence
+        this.projectiles = []; // Track projectiles separately for optimized collision detection
+        this.collisionGroups = {
+            spacecraft: 1,
+            alien: 2,
+            planet: 4,
+            satellite: 8,
+            projectile: 16
+        };
     }
     
     addObject(object) {
@@ -32,6 +40,23 @@ export class PhysicsSystem {
         return false;
     }
     
+    addProjectile(projectile) {
+        if (!this.projectiles.includes(projectile)) {
+            this.projectiles.push(projectile);
+            return true;
+        }
+        return false;
+    }
+    
+    removeProjectile(projectile) {
+        const index = this.projectiles.indexOf(projectile);
+        if (index !== -1) {
+            this.projectiles.splice(index, 1);
+            return true;
+        }
+        return false;
+    }
+    
     update(delta) {
         // Update physics for all registered objects
         this.objects.forEach(object => {
@@ -41,10 +66,18 @@ export class PhysicsSystem {
                 
                 // Apply any global forces here
                 
+                // Apply drag in space (very slight to simulate microparticles)
+                if (object.velocity.length() > 0.1) {
+                    object.velocity.multiplyScalar(0.995);
+                }
+                
                 // Check for collisions
                 this.checkCollisions(object);
             }
         });
+        
+        // Handle projectile collisions separately (optimized)
+        this.checkProjectileCollisions();
     }
     
     applyPlanetaryGravity(object, delta) {
@@ -77,6 +110,109 @@ export class PhysicsSystem {
         });
     }
     
+    checkProjectileCollisions() {
+        // Optimized collision detection for projectiles
+        for (let i = this.projectiles.length - 1; i >= 0; i--) {
+            const projectile = this.projectiles[i];
+            
+            // Skip if projectile doesn't have necessary properties
+            if (!projectile.position || !projectile.config) {
+                continue;
+            }
+            
+            // Create a smaller bounding sphere for more accurate detection
+            const projectileBounds = new THREE.Sphere(
+                projectile.position.clone(),
+                projectile.config.size * 0.8
+            );
+            
+            // Check against all physical objects
+            let hasCollided = false;
+            
+            for (const object of this.objects) {
+                // Skip objects without position
+                if (!object.position) {
+                    continue;
+                }
+                
+                // Skip friendly fire if that logic exists
+                if (projectile.owner && projectile.owner === object) {
+                    continue;
+                }
+                
+                // Skip based on collision groups
+                if (projectile.collisionGroup && 
+                    object.collisionGroup && 
+                    !(projectile.collisionGroup & object.collisionGroup)) {
+                    continue;
+                }
+                
+                // Get object bounds
+                const objectBounds = this.getBoundingBox(object);
+                
+                // Skip objects without bounds
+                if (!objectBounds) {
+                    continue;
+                }
+                
+                // Convert Box3 to Sphere for faster initial check
+                const objectCenterPoint = new THREE.Vector3();
+                objectBounds.getCenter(objectCenterPoint);
+                
+                const objectRadius = objectBounds.max.distanceTo(objectBounds.min) / 2;
+                const objectSphere = new THREE.Sphere(objectCenterPoint, objectRadius);
+                
+                // Fast sphere-sphere check
+                if (projectileBounds.intersectsSphere(objectSphere)) {
+                    // More accurate box check
+                    const projectileBox = new THREE.Box3().setFromCenterAndSize(
+                        projectile.position,
+                        new THREE.Vector3(
+                            projectile.config.size * 2,
+                            projectile.config.size * 2,
+                            projectile.config.size * 2
+                        )
+                    );
+                    
+                    if (projectileBox.intersectsBox(objectBounds)) {
+                        // Handle collision
+                        this.handleProjectileImpact(projectile, object);
+                        hasCollided = true;
+                        break;
+                    }
+                }
+            }
+            
+            if (hasCollided) {
+                // Physics system doesn't remove projectiles, just signals that they've hit
+                projectile.hasHit = true;
+            }
+        }
+    }
+    
+    handleProjectileImpact(projectile, object) {
+        // Calculate damage based on projectile properties
+        let damage = projectile.config.damage;
+        
+        // Apply damage if the object can take damage
+        if (object.takeDamage) {
+            const destroyed = object.takeDamage(damage);
+            
+            // Trigger explosion effect
+            if (projectile.explode) {
+                projectile.explode();
+            }
+            
+            // Handle object destruction
+            if (destroyed) {
+                // Trigger any destruction effects the object might have
+                if (object.onDestroyed) {
+                    object.onDestroyed();
+                }
+            }
+        }
+    }
+    
     checkCollisions(object) {
         const objectBounds = this.getBoundingBox(object);
         
@@ -92,6 +228,13 @@ export class PhysicsSystem {
                 return;
             }
             
+            // Skip based on collision groups if defined
+            if (object.collisionGroup && 
+                otherObject.collisionGroup && 
+                !(object.collisionGroup & otherObject.collisionGroup)) {
+                return;
+            }
+            
             const otherBounds = this.getBoundingBox(otherObject);
             
             // Skip objects without bounding boxes
@@ -101,10 +244,39 @@ export class PhysicsSystem {
             
             // Check for overlap
             if (this.checkBoundsOverlap(objectBounds, otherBounds)) {
+                // Calculate penetration depth for better collision response
+                const penetration = this.calculatePenetration(objectBounds, otherBounds);
+                
                 // Collision detected!
-                this.handleCollision(object, otherObject);
+                this.handleCollision(object, otherObject, penetration);
             }
         });
+    }
+    
+    calculatePenetration(bounds1, bounds2) {
+        // Calculate the penetration vector to push objects apart
+        const center1 = new THREE.Vector3();
+        bounds1.getCenter(center1);
+        
+        const center2 = new THREE.Vector3();
+        bounds2.getCenter(center2);
+        
+        // Direction from bounds2 to bounds1
+        const direction = new THREE.Vector3().subVectors(center1, center2).normalize();
+        
+        // Calculate size along each axis
+        const size1 = new THREE.Vector3().subVectors(bounds1.max, bounds1.min).multiplyScalar(0.5);
+        const size2 = new THREE.Vector3().subVectors(bounds2.max, bounds2.min).multiplyScalar(0.5);
+        
+        // Total distance between centers
+        const totalDist = center1.distanceTo(center2);
+        
+        // Approximate the penetration depth (not perfect but works for our needs)
+        const minDist = size1.length() + size2.length();
+        const penetrationDepth = Math.max(0, minDist - totalDist);
+        
+        // Return penetration vector
+        return direction.multiplyScalar(penetrationDepth);
     }
     
     getBoundingBox(object) {
@@ -179,7 +351,7 @@ export class PhysicsSystem {
         return bounds1.intersectsBox(bounds2);
     }
     
-    handleCollision(object1, object2) {
+    handleCollision(object1, object2, penetration) {
         // Let the objects handle their own collision responses if they can
         if (object1.onCollision) {
             object1.onCollision(object2);
@@ -189,53 +361,100 @@ export class PhysicsSystem {
             object2.onCollision(object1);
         }
         
-        // Default collision handling (simple bounce)
+        // Calculate damage based on collision severity
+        const collisionSpeed = object1.velocity && object2.velocity ? 
+            new THREE.Vector3().subVectors(object1.velocity, object2.velocity).length() : 
+            (object1.velocity ? object1.velocity.length() : 
+             (object2.velocity ? object2.velocity.length() : 0));
+        
+        // Only apply damage for significant collisions
+        if (collisionSpeed > 20) {
+            // Calculate damage based on collision speed
+            const damageMultiplier = 0.1;  // Adjust based on gameplay testing
+            const damage = collisionSpeed * damageMultiplier;
+            
+            // Apply damage to both objects if they can take damage
+            if (object1.takeDamage) {
+                object1.takeDamage(damage);
+            }
+            
+            if (object2.takeDamage) {
+                object2.takeDamage(damage);
+            }
+        }
+        
+        // Handle physical collision response
         if (object1.velocity && object2.velocity) {
-            // Simplified elastic collision
-            // Swap velocities (more complex simulations would consider mass, etc.)
-            const temp = object1.velocity.clone();
-            object1.velocity.copy(object2.velocity);
-            object2.velocity.copy(temp);
+            // Full elastic collision with mass consideration
+            const mass1 = object1.mass || 1;
+            const mass2 = object2.mass || 1;
             
-            // Add some "bounce" by pushing objects apart slightly
-            const pushDirection = new THREE.Vector3();
-            pushDirection.subVectors(object1.position, object2.position);
-            pushDirection.normalize();
+            // Calculate velocity changes for both objects
+            const v1 = object1.velocity.clone();
+            const v2 = object2.velocity.clone();
             
-            const pushAmount = 0.1; // Small push to prevent sticking
-            object1.position.add(pushDirection.clone().multiplyScalar(pushAmount));
-            object2.position.add(pushDirection.clone().multiplyScalar(-pushAmount));
+            // Collision normal
+            const normal = penetration.clone().normalize();
+            
+            // Relative velocity along normal
+            const relativeVelocity = new THREE.Vector3().subVectors(v2, v1);
+            const velocityAlongNormal = relativeVelocity.dot(normal);
+            
+            // Don't resolve if velocities are separating
+            if (velocityAlongNormal > 0) {
+                return;
+            }
+            
+            // Calculate impulse scalar
+            const restitution = 0.3; // Bounciness factor
+            const impulseMagnitude = -(1 + restitution) * velocityAlongNormal / 
+                                   (1/mass1 + 1/mass2);
+            
+            // Apply impulse
+            const impulse = normal.multiplyScalar(impulseMagnitude);
+            
+            // Update velocities
+            object1.velocity.sub(impulse.clone().multiplyScalar(1/mass1));
+            object2.velocity.add(impulse.clone().multiplyScalar(1/mass2));
+            
+            // Move objects out of collision
+            if (penetration.length() > 0.1) {
+                const pushFactor1 = mass2 / (mass1 + mass2);
+                const pushFactor2 = mass1 / (mass1 + mass2);
+                
+                object1.position.add(penetration.clone().multiplyScalar(pushFactor1));
+                object2.position.sub(penetration.clone().multiplyScalar(pushFactor2));
+            }
         }
         // If only one object has velocity, make it bounce
         else if (object1.velocity) {
             // Reflect the velocity based on collision normal
-            // For simplicity, assume normal is direction from object2 to object1
-            const normal = new THREE.Vector3();
-            normal.subVectors(object1.position, object2.position).normalize();
-            
-            // v' = v - 2(v·n)n - reflection formula
+            const normal = penetration.clone().normalize();
             const dot = object1.velocity.dot(normal);
-            object1.velocity.sub(normal.multiplyScalar(2 * dot));
             
-            // Reduce velocity slightly to simulate energy loss
-            object1.velocity.multiplyScalar(0.8);
-            
-            // Move object out of collision
-            const pushAmount = 0.1;
-            object1.position.add(normal.clone().multiplyScalar(pushAmount));
+            // Only bounce if moving toward the object
+            if (dot < 0) {
+                // v' = v - 2(v·n)n - reflection formula
+                object1.velocity.sub(normal.multiplyScalar(2 * dot));
+                
+                // Reduce velocity to simulate energy loss
+                object1.velocity.multiplyScalar(0.7);
+                
+                // Move object out of collision
+                object1.position.add(penetration);
+            }
         }
         else if (object2.velocity) {
             // Same logic but for object2
-            const normal = new THREE.Vector3();
-            normal.subVectors(object2.position, object1.position).normalize();
-            
+            const normal = penetration.clone().normalize().negate();
             const dot = object2.velocity.dot(normal);
-            object2.velocity.sub(normal.multiplyScalar(2 * dot));
             
-            object2.velocity.multiplyScalar(0.8);
-            
-            const pushAmount = 0.1;
-            object2.position.add(normal.clone().multiplyScalar(pushAmount));
+            // Only bounce if moving toward the object
+            if (dot < 0) {
+                object2.velocity.sub(normal.multiplyScalar(2 * dot));
+                object2.velocity.multiplyScalar(0.7);
+                object2.position.add(penetration.clone().negate());
+            }
         }
     }
 } 
