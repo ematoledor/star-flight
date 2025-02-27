@@ -86,6 +86,8 @@ export class UIManager {
         this.createTargetingSystem();
         this.createNotificationSystem();
         this.createMinimap();
+        this.createControlsPanel();
+        this.createLocationPanel();
         
         // Add CSS styles
         this.addStyles();
@@ -308,423 +310,385 @@ export class UIManager {
         this.minimapContext = this.hudElements.minimapCanvas.getContext('2d');
     }
     
+    createControlsPanel() {
+        const controlsPanel = document.createElement('div');
+        controlsPanel.className = 'controls-panel';
+        controlsPanel.innerHTML = `
+            <div class="panel-header">CONTROLS</div>
+            <div class="controls-list">
+                <div class="control-item">
+                    <span class="key">W/A/S/D</span>
+                    <span class="action">Move</span>
+                </div>
+                <div class="control-item">
+                    <span class="key">MOUSE</span>
+                    <span class="action">Aim</span>
+                </div>
+                <div class="control-item">
+                    <span class="key">SPACE</span>
+                    <span class="action">Boost</span>
+                </div>
+                <div class="control-item">
+                    <span class="key">SHIFT</span>
+                    <span class="action">Brake</span>
+                </div>
+                <div class="control-item">
+                    <span class="key">V</span>
+                    <span class="action">Cycle Camera</span>
+                </div>
+                <div class="control-item">
+                    <span class="key">C</span>
+                    <span class="action">Cockpit View</span>
+                </div>
+                <div class="control-item">
+                    <span class="key">F</span>
+                    <span class="action">First Person</span>
+                </div>
+                <div class="control-item">
+                    <span class="key">Q/E</span>
+                    <span class="action">Roll</span>
+                </div>
+                <div class="control-item">
+                    <span class="key">CLICK</span>
+                    <span class="action">Fire</span>
+                </div>
+            </div>
+            <div class="toggle-controls">HIDE [H]</div>
+        `;
+        
+        this.container.appendChild(controlsPanel);
+        this.hudElements.controlsPanel = controlsPanel;
+        
+        // Add toggle functionality
+        const toggleButton = controlsPanel.querySelector('.toggle-controls');
+        toggleButton.addEventListener('click', () => {
+            this.toggleControlsPanel();
+        });
+        
+        // Initially hide the controls panel
+        controlsPanel.classList.add('minimized');
+    }
+    
+    toggleControlsPanel() {
+        if (this.hudElements.controlsPanel) {
+            this.hudElements.controlsPanel.classList.toggle('minimized');
+            
+            // Update toggle button text
+            const toggleButton = this.hudElements.controlsPanel.querySelector('.toggle-controls');
+            if (toggleButton) {
+                toggleButton.textContent = this.hudElements.controlsPanel.classList.contains('minimized') 
+                    ? 'SHOW [H]' 
+                    : 'HIDE [H]';
+            }
+        }
+    }
+    
+    createLocationPanel() {
+        const locationPanel = document.createElement('div');
+        locationPanel.className = 'location-panel';
+        locationPanel.innerHTML = `
+            <div class="panel-header">NAVIGATION</div>
+            <div class="location-info">
+                <div class="location-item">
+                    <span class="label">SECTOR:</span>
+                    <span class="value sector-name">Unknown</span>
+                </div>
+                <div class="location-item">
+                    <span class="label">COORDINATES:</span>
+                    <span class="value position-value">X: 0 Y: 0 Z: 0</span>
+                </div>
+                <div class="location-item">
+                    <span class="label">SPEED:</span>
+                    <span class="value speed-value">0 km/h</span>
+                </div>
+                <div class="location-item">
+                    <span class="label">CAMERA:</span>
+                    <span class="value camera-mode">Third Person</span>
+                </div>
+                <div class="location-item">
+                    <span class="label">NEAREST:</span>
+                    <span class="value nearest-object">None</span>
+                </div>
+            </div>
+        `;
+        
+        this.container.appendChild(locationPanel);
+        
+        // Store references to elements
+        this.hudElements.locationPanel = locationPanel;
+        this.hudElements.sectorName = locationPanel.querySelector('.sector-name');
+        this.hudElements.positionValue = locationPanel.querySelector('.position-value');
+        this.hudElements.speedValue = locationPanel.querySelector('.speed-value');
+        this.hudElements.cameraMode = locationPanel.querySelector('.camera-mode');
+        this.hudElements.nearestObject = locationPanel.querySelector('.nearest-object');
+    }
+    
     addStyles() {
-        // Add CSS styles programmatically
         const style = document.createElement('style');
         style.textContent = `
-            /* General UI styles */
+            /* Existing styles */
             .game-ui {
-                position: absolute;
+                position: fixed;
                 top: 0;
                 left: 0;
                 width: 100%;
                 height: 100%;
                 pointer-events: none;
-                font-family: 'Orbitron', sans-serif;
-                color: #8af7ff;
-                text-shadow: 0 0 5px rgba(138, 247, 255, 0.7);
-                user-select: none;
+                font-family: 'Courier New', monospace;
+                color: #00ff00;
+                text-shadow: 0 0 5px rgba(0, 255, 0, 0.7);
+                z-index: 1000;
             }
             
-            /* HUD Container */
             .hud-container {
-                position: absolute;
-                top: 20px;
-                left: 20px;
-                width: 300px;
-            }
-            
-            /* HUD Elements */
-            .hud-element {
-                background-color: rgba(0, 20, 40, 0.7);
-                border: 1px solid #8af7ff;
-                border-radius: 5px;
-                padding: 10px;
-                margin-bottom: 10px;
-                box-shadow: 0 0 10px rgba(0, 100, 200, 0.5);
-            }
-            
-            .hud-element .label {
-                font-size: 12px;
-                margin-bottom: 5px;
-                opacity: 0.8;
-            }
-            
-            .hud-element .value {
-                font-size: 16px;
-                font-weight: bold;
-            }
-            
-            .bar-bg {
+                position: relative;
                 width: 100%;
-                height: 8px;
-                background-color: rgba(0, 0, 0, 0.5);
-                border-radius: 4px;
-                overflow: hidden;
-                margin: 5px 0;
-            }
-            
-            .bar-fill {
                 height: 100%;
-                width: 100%;
-                border-radius: 4px;
-                transition: width 0.3s ease, background-color 0.3s ease;
             }
             
-            .health-bar .bar-fill {
-                background-color: #00ff66;
-            }
-            
-            .shield-bar .bar-fill {
-                background-color: #4488ff;
-            }
-            
-            .energy-bar .bar-fill {
-                background-color: #ffcc00;
-            }
-            
-            /* Panels */
-            .hud-panel {
-                background-color: rgba(0, 20, 40, 0.7);
-                border: 1px solid #8af7ff;
-                border-radius: 5px;
-                padding: 15px;
-                margin: 10px;
-                box-shadow: 0 0 10px rgba(0, 100, 200, 0.5);
+            .hud-element {
                 position: absolute;
-            }
-            
-            .panel-header {
-                font-size: 14px;
-                font-weight: bold;
-                margin-bottom: 10px;
-                padding-bottom: 5px;
-                border-bottom: 1px solid #8af7ff;
-            }
-            
-            /* Sector panel */
-            .sector-panel {
-                top: 20px;
-                right: 20px;
-                width: 250px;
-            }
-            
-            .sector-name {
-                font-size: 18px;
-                margin-bottom: 10px;
-                text-align: center;
-            }
-            
-            .detail-item {
-                margin: 5px 0;
-                display: flex;
-                justify-content: space-between;
-            }
-            
-            /* Weapon panel */
-            .weapon-panel {
-                bottom: 20px;
-                right: 20px;
-                width: 250px;
-            }
-            
-            .active-weapon {
-                margin-bottom: 10px;
-            }
-            
-            .weapon-name {
-                font-size: 16px;
-                font-weight: bold;
-                margin-bottom: 5px;
-            }
-            
-            .weapon-status {
-                display: inline-block;
-                padding: 2px 8px;
-                border-radius: 3px;
-                font-size: 12px;
-                margin-bottom: 5px;
-                background-color: #00ff66;
-                color: #000;
-            }
-            
-            .weapon-status.cooldown {
-                background-color: #ff3366;
-            }
-            
-            .weapon-energy, .weapon-damage {
-                display: flex;
-                justify-content: space-between;
-                font-size: 12px;
-                margin: 2px 0;
-            }
-            
-            .weapon-cooldown {
-                margin: 10px 0;
-            }
-            
-            .weapon-selector {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 5px;
-            }
-            
-            .weapon-slot {
-                padding: 5px 10px;
-                border: 1px solid #8af7ff;
-                border-radius: 3px;
-                font-size: 12px;
-                cursor: pointer;
-                background-color: rgba(0, 50, 100, 0.5);
                 pointer-events: auto;
             }
             
-            .weapon-slot.selected {
-                background-color: rgba(0, 100, 200, 0.8);
-                box-shadow: 0 0 10px #8af7ff;
-            }
-            
-            .weapon-slot.disabled {
-                opacity: 0.5;
-                border-color: #555;
-                color: #888;
-                cursor: not-allowed;
-            }
-            
-            /* Targeting system */
-            .targeting-hud {
+            /* New styles for controls panel */
+            .controls-panel {
                 position: absolute;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-            }
-            
-            .targeting-reticle {
-                width: 80px;
-                height: 80px;
-                position: relative;
-            }
-            
-            .reticle-element {
-                position: absolute;
-                background-color: rgba(138, 247, 255, 0.7);
-            }
-            
-            .reticle-element.top, .reticle-element.bottom {
-                width: 20px;
-                height: 2px;
-                left: 30px;
-            }
-            
-            .reticle-element.left, .reticle-element.right {
-                width: 2px;
-                height: 20px;
-                top: 30px;
-            }
-            
-            .reticle-element.top { top: 0; }
-            .reticle-element.right { right: 0; }
-            .reticle-element.bottom { bottom: 0; }
-            .reticle-element.left { left: 0; }
-            
-            .reticle-center {
-                position: absolute;
-                width: 6px;
-                height: 6px;
-                border-radius: 50%;
-                background-color: rgba(138, 247, 255, 0.9);
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-            }
-            
-            .target-info {
-                position: absolute;
-                top: 100%;
-                left: 50%;
-                transform: translateX(-50%);
-                margin-top: 15px;
+                top: 20px;
+                right: 20px;
                 background-color: rgba(0, 20, 40, 0.7);
-                border: 1px solid #8af7ff;
+                border: 1px solid #00ff00;
                 border-radius: 5px;
                 padding: 10px;
                 width: 200px;
-                text-align: center;
+                transition: all 0.3s ease;
+                pointer-events: auto;
+                z-index: 1001;
             }
             
-            .target-info.hidden {
-                display: none;
+            .controls-panel.minimized {
+                width: 40px;
+                height: 20px;
+                overflow: hidden;
             }
             
-            .target-name {
-                font-size: 14px;
+            .panel-header {
                 font-weight: bold;
-                margin-bottom: 5px;
+                text-align: center;
+                margin-bottom: 10px;
+                border-bottom: 1px solid #00ff00;
+                padding-bottom: 5px;
             }
             
-            .target-distance {
-                font-size: 12px;
-                margin-bottom: 5px;
-            }
-            
-            .target-lock-status {
-                font-size: 12px;
-                margin-top: 5px;
-                color: #ff3366;
-            }
-            
-            .target-lock-status.locked {
-                color: #00ff66;
-            }
-            
-            /* Notification area */
-            .notification-area {
-                position: absolute;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                width: 80%;
-                pointer-events: none;
+            .controls-list {
                 display: flex;
                 flex-direction: column;
-                align-items: center;
-                z-index: 100;
+                gap: 5px;
             }
             
-            .notification {
-                background-color: rgba(0, 20, 40, 0.8);
-                border: 1px solid #8af7ff;
-                border-radius: 5px;
-                padding: 15px 30px;
-                margin: 10px 0;
-                font-size: 20px;
-                text-align: center;
-                animation: fadeOut 3s forwards;
-                max-width: 80%;
+            .control-item {
+                display: flex;
+                justify-content: space-between;
             }
             
-            .notification.warning {
-                border-color: #ff9500;
-                color: #ff9500;
-            }
-            
-            .notification.danger {
-                border-color: #ff3366;
-                color: #ff3366;
-            }
-            
-            .notification.success {
-                border-color: #00ff66;
-                color: #00ff66;
-            }
-            
-            @keyframes fadeOut {
-                0% { opacity: 0; transform: translateY(-20px); }
-                10% { opacity: 1; transform: translateY(0); }
-                80% { opacity: 1; }
-                100% { opacity: 0; }
-            }
-            
-            /* Minimap */
-            .minimap {
-                position: absolute;
-                bottom: 20px;
-                left: 20px;
-                width: 220px;
-                background-color: rgba(0, 20, 40, 0.7);
-                border: 1px solid #8af7ff;
-                border-radius: 5px;
-                padding: 10px;
-                box-shadow: 0 0 10px rgba(0, 100, 200, 0.5);
-            }
-            
-            .minimap-header {
-                font-size: 12px;
-                margin-bottom: 10px;
+            .key {
+                background-color: rgba(0, 100, 0, 0.5);
+                padding: 2px 5px;
+                border-radius: 3px;
+                font-weight: bold;
+                min-width: 50px;
                 text-align: center;
             }
             
-            .minimap-container {
-                position: relative;
-                width: 200px;
-                height: 200px;
-            }
-            
-            .minimap-canvas {
-                background-color: rgba(0, 10, 20, 0.8);
+            .toggle-controls {
+                text-align: center;
+                margin-top: 10px;
+                cursor: pointer;
+                font-size: 0.8em;
+                padding: 3px;
+                background-color: rgba(0, 50, 0, 0.5);
                 border-radius: 3px;
             }
             
-            .player-indicator {
+            /* Styles for location panel */
+            .location-panel {
                 position: absolute;
-                width: 8px;
-                height: 8px;
-                background-color: #8af7ff;
-                border-radius: 50%;
-                top: 50%;
+                bottom: 20px;
+                left: 20px;
+                background-color: rgba(0, 20, 40, 0.7);
+                border: 1px solid #00ff00;
+                border-radius: 5px;
+                padding: 10px;
+                width: 250px;
+                pointer-events: auto;
+            }
+            
+            .location-info {
+                display: flex;
+                flex-direction: column;
+                gap: 5px;
+            }
+            
+            .location-item {
+                display: flex;
+                justify-content: space-between;
+            }
+            
+            .label {
+                font-weight: bold;
+            }
+            
+            /* Existing notification styles */
+            .notification-area {
+                position: absolute;
+                top: 50px;
                 left: 50%;
-                transform: translate(-50%, -50%);
-                box-shadow: 0 0 10px #8af7ff;
+                transform: translateX(-50%);
+                width: 80%;
+                max-width: 600px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+                pointer-events: none;
+            }
+            
+            .notification {
+                background-color: rgba(0, 20, 40, 0.7);
+                border: 1px solid #00ff00;
+                border-radius: 5px;
+                padding: 10px 20px;
+                text-align: center;
+                animation: fadeIn 0.3s ease-in, fadeOut 0.3s ease-out 4.7s;
+                pointer-events: none;
+            }
+            
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(-20px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            
+            @keyframes fadeOut {
+                from { opacity: 1; transform: translateY(0); }
+                to { opacity: 0; transform: translateY(-20px); }
             }
         `;
         
         document.head.appendChild(style);
-        
-        // Load Orbitron font
-        const fontLink = document.createElement('link');
-        fontLink.href = 'https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap';
-        fontLink.rel = 'stylesheet';
-        document.head.appendChild(fontLink);
     }
     
     updateHUD() {
-        // Update health
-        if (this.spacecraft.health !== undefined) {
-            const healthPercent = (this.spacecraft.health / this.spacecraft.maxHealth) * 100;
-            this.hudElements.healthBar.style.width = `${healthPercent}%`;
-            this.hudElements.healthValue.textContent = `${Math.round(healthPercent)}%`;
+        try {
+            // Skip if not initialized
+            if (!this.isInitialized || !this.spacecraft) return;
             
-            // Change color based on health
-            if (healthPercent < 25) {
-                this.hudElements.healthBar.style.backgroundColor = '#ff3366'; // Red
-            } else if (healthPercent < 50) {
-                this.hudElements.healthBar.style.backgroundColor = '#ff9500'; // Orange
-            } else {
-                this.hudElements.healthBar.style.backgroundColor = '#00ff66'; // Green
+            // Update health
+            if (this.hudElements.healthBar && this.hudElements.healthValue) {
+                const healthPercent = (this.spacecraft.health / this.spacecraft.maxHealth) * 100;
+                this.hudElements.healthBar.style.width = `${healthPercent}%`;
+                this.hudElements.healthValue.textContent = `${Math.round(this.spacecraft.health)}/${this.spacecraft.maxHealth}`;
             }
+            
+            // Update shields
+            if (this.hudElements.shieldBar && this.hudElements.shieldValue && this.spacecraft.shields !== undefined) {
+                const shieldPercent = (this.spacecraft.shields / this.spacecraft.maxShields) * 100;
+                this.hudElements.shieldBar.style.width = `${shieldPercent}%`;
+                this.hudElements.shieldValue.textContent = `${Math.round(this.spacecraft.shields)}/${this.spacecraft.maxShields}`;
+            }
+            
+            // Update energy
+            if (this.hudElements.energyBar && this.hudElements.energyValue && this.spacecraft.energy !== undefined) {
+                const energyPercent = (this.spacecraft.energy / this.spacecraft.maxEnergy) * 100;
+                this.hudElements.energyBar.style.width = `${energyPercent}%`;
+                this.hudElements.energyValue.textContent = `${Math.round(this.spacecraft.energy)}/${this.spacecraft.maxEnergy}`;
+            }
+            
+            // Update speed
+            if (this.hudElements.speedValue) {
+                const speed = this.spacecraft.velocity ? this.spacecraft.velocity.length() : 0;
+                this.hudElements.speedValue.textContent = `${Math.round(speed)} km/h`;
+            }
+            
+            // Update position
+            if (this.hudElements.positionValue && this.spacecraft.position) {
+                const pos = this.spacecraft.position;
+                this.hudElements.positionValue.textContent = `X: ${Math.round(pos.x)} Y: ${Math.round(pos.y)} Z: ${Math.round(pos.z)}`;
+            }
+            
+            // Update camera mode
+            if (this.hudElements.cameraMode && this.spacecraft.cameraMode) {
+                // Format the camera mode for display (capitalize and replace hyphens with spaces)
+                const formattedMode = this.spacecraft.cameraMode
+                    .split('-')
+                    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                    .join(' ');
+                this.hudElements.cameraMode.textContent = formattedMode;
+            }
+            
+            // Update nearest object
+            if (this.hudElements.nearestObject && this.gameWorld) {
+                // Find the nearest object (planet, mothership, etc.)
+                let nearestObject = this.findNearestObject();
+                if (nearestObject) {
+                    const distance = Math.round(nearestObject.distance);
+                    this.hudElements.nearestObject.textContent = `${nearestObject.name} (${distance}m)`;
+                } else {
+                    this.hudElements.nearestObject.textContent = "None";
+                }
+            }
+            
+            // Update weapon status
+            this.updateWeaponStatus();
+        } catch (error) {
+            console.error("Error updating HUD:", error);
         }
-        
-        // Update shields
-        if (this.spacecraft.shield !== undefined) {
-            const shieldPercent = (this.spacecraft.shield / this.spacecraft.maxShield) * 100;
-            this.hudElements.shieldBar.style.width = `${shieldPercent}%`;
-            this.hudElements.shieldValue.textContent = `${Math.round(shieldPercent)}%`;
+    }
+    
+    findNearestObject() {
+        try {
+            if (!this.spacecraft || !this.gameWorld) return null;
+            
+            const spacecraftPos = this.spacecraft.position;
+            let nearestObject = null;
+            let nearestDistance = Infinity;
+            
+            // Check planets
+            if (this.gameWorld.planets) {
+                for (const planet of this.gameWorld.planets) {
+                    if (!planet || !planet.position) continue;
+                    
+                    const distance = spacecraftPos.distanceTo(planet.position);
+                    if (distance < nearestDistance) {
+                        nearestDistance = distance;
+                        nearestObject = {
+                            name: planet.name || "Unknown Planet",
+                            distance: distance
+                        };
+                    }
+                }
+            }
+            
+            // Check motherships
+            if (this.gameWorld.motherships) {
+                for (const ship of this.gameWorld.motherships) {
+                    if (!ship || !ship.position) continue;
+                    
+                    const distance = spacecraftPos.distanceTo(ship.position);
+                    if (distance < nearestDistance) {
+                        nearestDistance = distance;
+                        nearestObject = {
+                            name: "Mothership",
+                            distance: distance
+                        };
+                    }
+                }
+            }
+            
+            return nearestObject;
+        } catch (error) {
+            console.error("Error finding nearest object:", error);
+            return null;
         }
-        
-        // Update energy
-        if (this.spacecraft.energy !== undefined) {
-            const energyPercent = (this.spacecraft.energy / this.spacecraft.maxEnergy) * 100;
-            this.hudElements.energyBar.style.width = `${energyPercent}%`;
-            this.hudElements.energyValue.textContent = `${Math.round(energyPercent)}%`;
-        }
-        
-        // Update speed
-        if (this.spacecraft.velocity) {
-            const speed = this.spacecraft.velocity.length();
-            this.hudElements.speedValue.textContent = `${Math.round(speed)} km/s`;
-        }
-        
-        // Update score
-        this.hudElements.scoreValue.textContent = this.score.toLocaleString();
-        
-        // Update position
-        if (this.spacecraft.position) {
-            const pos = this.spacecraft.position;
-            this.hudElements.positionValue.textContent = `X: ${Math.round(pos.x)} Y: ${Math.round(pos.y)} Z: ${Math.round(pos.z)}`;
-        }
-        
-        // Update weapon status
-        this.updateWeaponStatus();
     }
     
     updateWeaponStatus() {
@@ -739,7 +703,7 @@ export class UIManager {
             this.hudElements.weaponCooldown.style.width = `${cooldownPercent}%`;
             this.hudElements.weaponStatus.textContent = 'COOLDOWN';
             this.hudElements.weaponStatus.classList.add('cooldown');
-            } else {
+        } else {
             this.hudElements.weaponCooldown.style.width = '0%';
             this.hudElements.weaponStatus.textContent = 'READY';
             this.hudElements.weaponStatus.classList.remove('cooldown');
@@ -1258,14 +1222,14 @@ export class UIManager {
         // ULTRA-SIMPLE approach - no complex operations that can cause errors
         try {
             // Update basic HUD for health, shield, energy
-        if (this.spacecraft) {
+            if (this.spacecraft) {
                 // Update health
                 if (this.hudElements.healthBar && typeof this.spacecraft.health === 'number') {
                     const healthPercent = (this.spacecraft.health / this.spacecraft.maxHealth) * 100;
                     this.hudElements.healthBar.style.width = `${Math.max(0, Math.min(100, healthPercent))}%`;
                     
                     if (this.hudElements.healthValue) {
-                        this.hudElements.healthValue.textContent = `${Math.round(healthPercent)}%`;
+                        this.hudElements.healthValue.textContent = `${Math.round(this.spacecraft.health)}/${this.spacecraft.maxHealth}`;
                     }
                 }
                 
@@ -1275,7 +1239,7 @@ export class UIManager {
                     this.hudElements.shieldBar.style.width = `${Math.max(0, Math.min(100, shieldPercent))}%`;
                     
                     if (this.hudElements.shieldValue) {
-                        this.hudElements.shieldValue.textContent = `${Math.round(shieldPercent)}%`;
+                        this.hudElements.shieldValue.textContent = `${Math.round(this.spacecraft.shield)}/${this.spacecraft.maxShield}`;
                     }
                 }
                 
@@ -1285,7 +1249,7 @@ export class UIManager {
                     this.hudElements.energyBar.style.width = `${Math.max(0, Math.min(100, energyPercent))}%`;
                     
                     if (this.hudElements.energyValue) {
-                        this.hudElements.energyValue.textContent = `${Math.round(energyPercent)}%`;
+                        this.hudElements.energyValue.textContent = `${Math.round(this.spacecraft.energy)}/${this.spacecraft.maxEnergy}`;
                     }
                 }
                 

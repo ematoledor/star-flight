@@ -9,6 +9,10 @@ export class InputHandler {
             rightDown: false
         };
         
+        // Track key press timestamps to prevent multiple triggers
+        this.lastKeyPressTime = {};
+        this.keyDebounceTime = 300; // ms
+        
         // Initialize input listeners
         this.initKeyboardListeners();
         this.initMouseListeners();
@@ -28,10 +32,21 @@ export class InputHandler {
     initKeyboardListeners() {
         // Key down event
         document.addEventListener('keydown', (event) => {
-            this.keys[event.key.toLowerCase()] = true;
+            const key = event.key.toLowerCase();
+            
+            // Only register the key press if it's not already pressed
+            // or if enough time has passed since the last press (for toggle actions)
+            const now = Date.now();
+            if (!this.keys[key] || (now - (this.lastKeyPressTime[key] || 0) > this.keyDebounceTime)) {
+                this.keys[key] = true;
+                this.lastKeyPressTime[key] = now;
+                
+                // Handle special cases that should trigger immediately
+                this.handleSpecialKeys(key);
+            }
             
             // Handle special cases
-            if (event.key === 'Escape') {
+            if (key === 'escape') {
                 this.toggleMenu();
             }
         });
@@ -40,6 +55,52 @@ export class InputHandler {
         document.addEventListener('keyup', (event) => {
             this.keys[event.key.toLowerCase()] = false;
         });
+    }
+    
+    // Handle special key presses that should trigger once per press
+    handleSpecialKeys(key) {
+        // Skip if spacecraft is not available
+        if (!this.spacecraft) return;
+        
+        switch (key) {
+            case 'v': // Toggle camera view
+                if (this.spacecraft.cycleCameraMode) {
+                    this.spacecraft.cycleCameraMode();
+                    console.log(`Camera mode switched to: ${this.spacecraft.cameraMode}`);
+                }
+                break;
+                
+            case 'c': // Toggle cockpit view specifically
+                if (this.spacecraft.switchCameraMode) {
+                    const newMode = this.spacecraft.cameraMode === 'cockpit' ? 'third-person' : 'cockpit';
+                    this.spacecraft.switchCameraMode(newMode);
+                }
+                break;
+                
+            case 'f': // Toggle first-person view specifically
+                if (this.spacecraft.switchCameraMode) {
+                    const newMode = this.spacecraft.cameraMode === 'first-person' ? 'third-person' : 'first-person';
+                    this.spacecraft.switchCameraMode(newMode);
+                }
+                break;
+                
+            case 'h': // Toggle controls panel
+                this.toggleControlsPanel();
+                break;
+        }
+    }
+    
+    // Toggle controls panel visibility
+    toggleControlsPanel() {
+        // Find the UI manager in the global scope
+        const uiManager = window.game && window.game.uiManager;
+        
+        // Toggle controls panel if UI manager is available
+        if (uiManager && typeof uiManager.toggleControlsPanel === 'function') {
+            uiManager.toggleControlsPanel();
+        } else {
+            console.warn("UI Manager not found, cannot toggle controls panel");
+        }
     }
     
     initMouseListeners() {

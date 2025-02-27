@@ -73,6 +73,9 @@ class Game {
         
         // Initialize the game
         this.init();
+        
+        // Make the game instance globally accessible
+        window.game = this;
     }
     
     init() {
@@ -2150,10 +2153,12 @@ class Game {
             
             // Set starting position based on mothership or Earth
             if (mothership) {
-                // Start in front of the mothership
+                // Start near the mothership (slightly offset to be visible)
                 startPosition = new THREE.Vector3().copy(mothership.position);
-                startPosition.y -= 100; // Below the mothership
-                console.log(`Starting at mothership: ${startPosition.x}, ${startPosition.y}, ${startPosition.z}`);
+                startPosition.x += 50; // Offset to the side
+                startPosition.y += 20; // Slightly above
+                startPosition.z += 100; // In front of the mothership
+                console.log(`Starting near mothership: ${startPosition.x}, ${startPosition.y}, ${startPosition.z}`);
             } else {
                 // Fallback to starting above Earth
                 const earth = this.gameWorld ? 
@@ -2198,6 +2203,17 @@ class Game {
                 );
                 this.camera.lookAt(startPosition);
                 console.log(`Camera positioned at: ${this.camera.position.x}, ${this.camera.position.y}, ${this.camera.position.z}`);
+            }
+            
+            // Show a notification about the starting position
+            if (this.uiManager) {
+                const locationName = mothership ? "Mothership" : (earth ? "Earth" : "Unknown Location");
+                this.uiManager.showNotification(`Starting near ${locationName}`, 'info', 5000);
+                
+                // Also show controls hint
+                setTimeout(() => {
+                    this.uiManager.showNotification("Press H to show controls", 'info', 5000);
+                }, 6000);
             }
             
             console.log("Player spacecraft created successfully");

@@ -143,12 +143,24 @@ export class Spacecraft extends THREE.Object3D {
         this.cameraRig = new THREE.Object3D();
         this.add(this.cameraRig);
         
-        this.cameraRig.position.set(0, 5, -15);
+        // Store camera modes and positions
+        this.cameraMode = 'third-person'; // 'first-person' or 'third-person'
+        this.cameraPositions = {
+            'third-person': new THREE.Vector3(0, 5, -15),
+            'first-person': new THREE.Vector3(0, 1.5, 3),
+            'cockpit': new THREE.Vector3(0, 1.5, 1.5),
+            'external': new THREE.Vector3(0, 10, -25)
+        };
+        
+        // Set initial camera position (third-person)
+        this.cameraRig.position.copy(this.cameraPositions['third-person']);
         this.cameraRig.lookAt(this.position);
         
         // Allow the camera to be attached to this rig
         this.camera.position.copy(this.cameraRig.position);
         this.camera.lookAt(this.position);
+        
+        console.log(`Camera initialized in ${this.cameraMode} mode`);
     }
     
     update(delta) {
@@ -162,7 +174,17 @@ export class Spacecraft extends THREE.Object3D {
                     const worldPosition = new THREE.Vector3();
                     this.cameraRig.getWorldPosition(worldPosition);
                     this.camera.position.copy(worldPosition);
-                    this.camera.lookAt(this.position);
+                    
+                    // In first-person mode, look forward from the ship
+                    // In third-person mode, look at the ship
+                    if (this.cameraMode === 'first-person' || this.cameraMode === 'cockpit') {
+                        // Get the forward direction of the spacecraft
+                        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.quaternion);
+                        const target = this.position.clone().add(forward.multiplyScalar(100));
+                        this.camera.lookAt(target);
+                    } else {
+                        this.camera.lookAt(this.position);
+                    }
                 } catch (err) {
                     console.error("Error updating camera position:", err);
                 }
@@ -182,6 +204,44 @@ export class Spacecraft extends THREE.Object3D {
         } catch (error) {
             console.error("Error in Spacecraft update:", error);
         }
+    }
+    
+    // New method to switch camera views
+    switchCameraMode(mode) {
+        try {
+            // Validate the requested mode
+            if (!this.cameraPositions[mode]) {
+                console.error(`Invalid camera mode: ${mode}`);
+                return false;
+            }
+            
+            // Store the previous mode
+            const previousMode = this.cameraMode;
+            this.cameraMode = mode;
+            
+            // Update camera position
+            this.cameraRig.position.copy(this.cameraPositions[mode]);
+            
+            // Make spacecraft model visible/invisible based on camera mode
+            if (this.voxelModel) {
+                // In first-person or cockpit view, hide the spacecraft model
+                this.voxelModel.visible = !(mode === 'first-person' || mode === 'cockpit');
+            }
+            
+            console.log(`Camera switched from ${previousMode} to ${mode} mode`);
+            return true;
+        } catch (error) {
+            console.error("Error switching camera mode:", error);
+            return false;
+        }
+    }
+    
+    // Cycle through camera modes
+    cycleCameraMode() {
+        const modes = Object.keys(this.cameraPositions);
+        const currentIndex = modes.indexOf(this.cameraMode);
+        const nextIndex = (currentIndex + 1) % modes.length;
+        return this.switchCameraMode(modes[nextIndex]);
     }
     
     updateEngineEffects(delta) {
