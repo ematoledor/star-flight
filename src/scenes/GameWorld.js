@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Planet } from '../entities/Planet.js';
-import { Alien } from '../entities/Alien.js';
+import { AlienShip } from '../entities/AlienShip.js';
 import { AsteroidField } from '../components/AsteroidField.js';
 import { Nebula } from '../components/Nebula.js';
 
@@ -370,7 +370,7 @@ export class GameWorld {
         }
         
         // Create alien ship
-        const alien = new Alien({
+        const alien = new AlienShip({
             scene: this.scene,
             position: position,
             type: enemyType,
