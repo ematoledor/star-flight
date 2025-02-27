@@ -181,9 +181,12 @@ class Game {
             console.log("Initializing Three.js...");
             
             // Create scene with black background
-        this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x000000);
-        
+            this.scene = new THREE.Scene();
+            this.scene.background = new THREE.Color(0x000000);
+            
+            // PERFORMANCE: Enable frustum culling
+            this.scene.frustumCulled = true;
+            
             // Create camera with good defaults for space game
             this.camera = new THREE.PerspectiveCamera(
                 75, // Field of view
@@ -223,86 +226,201 @@ class Game {
             // Log canvas dimensions for debugging
             console.log(`Canvas dimensions: ${canvas.clientWidth}x${canvas.clientHeight}`);
             
-            // Create WebGL renderer with robust settings
+            // PERFORMANCE: Detect device capabilities for adaptive quality
+            const isLowEndDevice = this.detectLowEndDevice();
+            console.log(`Device capability detection: ${isLowEndDevice ? 'Low-end' : 'High-end'} device`);
+            
+            // Create WebGL renderer with settings optimized for performance
             this.renderer = new THREE.WebGLRenderer({
                 canvas: canvas,
-                antialias: true, // Always use antialiasing for better visuals
+                antialias: !isLowEndDevice, // Only use antialiasing on high-end devices
                 alpha: false, // No transparency needed for space
                 powerPreference: 'high-performance',
-                precision: 'highp', // Use high precision for better visuals
-                preserveDrawingBuffer: true // Important for screenshots and post-processing
+                precision: isLowEndDevice ? 'mediump' : 'highp', // Lower precision on low-end devices
+                stencil: false, // Disable stencil buffer if not needed
+                depth: true, // Keep depth buffer for 3D
+                logarithmicDepthBuffer: false // Disable logarithmic depth buffer for performance
             });
             
             // CRITICAL FIX: Set renderer size explicitly to match window
             this.renderer.setSize(window.innerWidth, window.innerHeight, false);
-            this.renderer.setPixelRatio(window.devicePixelRatio || 1);
+            
+            // PERFORMANCE: Limit pixel ratio on high-DPI devices
+            const maxPixelRatio = isLowEndDevice ? 1 : 2;
+            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxPixelRatio));
             
             // CRITICAL FIX: Set output encoding for better colors
             this.renderer.outputColorSpace = THREE.SRGBColorSpace;
             
-            // Add stronger lights to the scene
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-        this.scene.add(ambientLight);
-        
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
-            directionalLight.position.set(1, 1, 1);
-            directionalLight.name = "MainLight";
-        this.scene.add(directionalLight);
-        
-            // Add a bright red test sphere to verify rendering
-            const geometry = new THREE.SphereGeometry(10, 32, 32); // Larger and more detailed
-            const material = new THREE.MeshStandardMaterial({ 
-                color: 0xff0000,
-                emissive: 0xff0000,
-                emissiveIntensity: 0.5 // Make it glow
-            });
-            const sphere = new THREE.Mesh(geometry, material);
-            sphere.position.set(0, 0, 0);
-            sphere.name = "TestSphere";
-            this.scene.add(sphere);
+            // PERFORMANCE: Optimize renderer settings
+            this.renderer.shadowMap.enabled = !isLowEndDevice; // Disable shadows on low-end devices
+            this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             
-            // CRITICAL FIX: Add orbit controls for easier debugging
-            if (typeof OrbitControls !== 'undefined') {
-                try {
-        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-                    this.controls.enableDamping = true;
-                    this.controls.dampingFactor = 0.25;
-                    console.log("Orbit controls initialized");
-                } catch (error) {
-                    console.warn("Could not initialize OrbitControls:", error);
-                }
-            }
+            // Add lights to the scene
+            this.addLights(isLowEndDevice);
             
-            // Handle window resize with debouncing
+            // PERFORMANCE: Add a simple skybox instead of complex stars
+            this.addSimpleSkybox();
+            
+            // Set up window resize handler with debouncing for performance
             let resizeTimeout;
             window.addEventListener('resize', () => {
-                clearTimeout(resizeTimeout);
+                // Clear previous timeout
+                if (resizeTimeout) clearTimeout(resizeTimeout);
+                
+                // Set new timeout to debounce resize events
                 resizeTimeout = setTimeout(() => {
-                    console.log("Handling window resize");
+                    // Update camera aspect ratio
                     this.camera.aspect = window.innerWidth / window.innerHeight;
                     this.camera.updateProjectionMatrix();
+                    
+                    // Update renderer size
                     this.renderer.setSize(window.innerWidth, window.innerHeight, false);
-                    // Force a render after resize
+                    
+                    // Force a render
                     this.renderScene();
-                }, 100);
+                    
+                    console.log(`Window resized: ${window.innerWidth}x${window.innerHeight}`);
+                }, 250); // 250ms debounce
             });
             
-            // CRITICAL FIX: Force multiple renders to ensure scene is visible
-            console.log("Forcing initial renders");
-            this.renderer.render(this.scene, this.camera);
+            // Force an initial render to ensure scene is visible
+            this.renderScene();
             
-            // Schedule additional renders to ensure visibility
-            setTimeout(() => this.renderer.render(this.scene, this.camera), 100);
-            setTimeout(() => this.renderer.render(this.scene, this.camera), 500);
-            setTimeout(() => this.renderer.render(this.scene, this.camera), 1000);
-            
-            console.log(`Scene initialized with ${this.scene.children.length} objects`);
+            console.log("Three.js initialized successfully");
             return true;
         } catch (error) {
             console.error("Error initializing Three.js:", error);
-            // CRITICAL FIX: Show error on screen
-            this.showErrorMessage("Failed to initialize Three.js: " + error.message);
             return false;
+        }
+    }
+    
+    // PERFORMANCE: Add a method to detect low-end devices
+    detectLowEndDevice() {
+        try {
+            // Check for navigator.hardwareConcurrency (CPU cores)
+            const lowCPUCores = navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4;
+            
+            // Check for low memory (if available)
+            const lowMemory = navigator.deviceMemory && navigator.deviceMemory <= 4;
+            
+            // Check for mobile device
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            
+            // Check for WebGL capabilities
+            let webGLScore = 0;
+            try {
+                const canvas = document.createElement('canvas');
+                const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                if (gl) {
+                    const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+                    if (debugInfo) {
+                        const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+                        console.log(`WebGL Renderer: ${renderer}`);
+                        
+                        // Check for integrated graphics
+                        const isIntegrated = /(Intel|AMD|Microsoft|SwiftShader)/i.test(renderer);
+                        webGLScore = isIntegrated ? 1 : 2;
+                    }
+                }
+            } catch (e) {
+                console.warn("Error detecting WebGL capabilities:", e);
+            }
+            
+            // Calculate overall score
+            const factors = [
+                lowCPUCores ? 1 : 0,
+                lowMemory ? 1 : 0,
+                isMobile ? 1 : 0,
+                webGLScore === 1 ? 1 : 0
+            ];
+            
+            const score = factors.reduce((sum, factor) => sum + factor, 0);
+            console.log(`Device capability score: ${score}/4`);
+            
+            // Consider it a low-end device if score is 2 or higher
+            return score >= 2;
+        } catch (error) {
+            console.error("Error in detectLowEndDevice:", error);
+            return false; // Default to high-end if detection fails
+        }
+    }
+    
+    // PERFORMANCE: Add a method to add optimized lights
+    addLights(isLowEndDevice) {
+        // Add ambient light (cheap)
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+        this.scene.add(ambientLight);
+        
+        if (!isLowEndDevice) {
+            // Add directional light (more expensive) only for high-end devices
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(1, 1, 1);
+            directionalLight.castShadow = true;
+            
+            // Optimize shadow settings
+            directionalLight.shadow.mapSize.width = 1024;
+            directionalLight.shadow.mapSize.height = 1024;
+            directionalLight.shadow.camera.near = 0.5;
+            directionalLight.shadow.camera.far = 500;
+            
+            this.scene.add(directionalLight);
+        } else {
+            // Add a simple directional light without shadows for low-end devices
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(1, 1, 1);
+            this.scene.add(directionalLight);
+        }
+    }
+    
+    // PERFORMANCE: Add a simple skybox instead of complex star field
+    addSimpleSkybox() {
+        try {
+            // Create a simple star background using a sphere with inverted normals
+            const geometry = new THREE.SphereGeometry(5000, 16, 16); // Reduced segments
+            
+            // Invert the geometry so we can see it from inside
+            geometry.scale(-1, 1, 1);
+            
+            // Create a simple material with a star texture or a basic color
+            const material = new THREE.MeshBasicMaterial({
+                color: 0x000000,
+                side: THREE.BackSide,
+                fog: false
+            });
+            
+            // Add some simple stars using points
+            const starsGeometry = new THREE.BufferGeometry();
+            const starsVertices = [];
+            
+            // PERFORMANCE: Reduce number of stars based on device capability
+            const starCount = this.detectLowEndDevice() ? 1000 : 3000;
+            
+            for (let i = 0; i < starCount; i++) {
+                const x = (Math.random() - 0.5) * 10000;
+                const y = (Math.random() - 0.5) * 10000;
+                const z = (Math.random() - 0.5) * 10000;
+                starsVertices.push(x, y, z);
+            }
+            
+            starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
+            
+            const starsMaterial = new THREE.PointsMaterial({
+                color: 0xffffff,
+                size: 2,
+                sizeAttenuation: false
+            });
+            
+            const starField = new THREE.Points(starsGeometry, starsMaterial);
+            
+            // Create the skybox mesh and add to scene
+            const skybox = new THREE.Mesh(geometry, material);
+            this.scene.add(skybox);
+            this.scene.add(starField);
+            
+            console.log("Simple skybox created");
+        } catch (error) {
+            console.error("Error creating skybox:", error);
         }
     }
     
@@ -1526,135 +1644,92 @@ class Game {
     // Animation loop
     animate() {
         try {
-            // Request next frame immediately to ensure smooth animation
-            requestAnimationFrame(this.animate);
-            
-            // CRITICAL FIX: Always render the scene, even if game is not running
-            // This ensures the scene remains visible even during performance issues
-            this.renderScene();
-            
-            // Only continue with game logic if game is active
-            if (!this.isRunning) {
-                return;
-            }
+            // Use requestAnimationFrame for the next frame
+            this.animationFrameId = requestAnimationFrame(this.animate);
             
             // Calculate delta time
             const now = performance.now();
-            const delta = now - this.lastTime;
+            let delta = (now - this.lastTime) / 1000; // Convert to seconds
+            this.lastTime = now;
             
-            // CRITICAL FIX: Handle large frame times more gracefully
-            // Instead of skipping updates entirely, cap the delta time
-            const cappedDelta = Math.min(delta, 100); // Cap at 100ms (10fps minimum)
-            
-            // Log large frame times but continue processing
-            if (delta > 500) {
-                console.warn("Large frame time detected:", delta, "ms - capping to", cappedDelta, "ms");
-                // Don't return early - we'll still process the frame with capped delta
-            }
-            
-            // Update stats if available
-            if (this.stats) {
-                this.stats.begin();
-            }
-            
-            // Only update game logic if initialized
-            if (this.initialized) {
-                // Use capped delta to prevent physics explosions
-                this.update(now, cappedDelta);
-            }
-            
-            // Update stats if available
-            if (this.stats) {
-                this.stats.end();
+            // PERFORMANCE: Skip frames if delta is too large (e.g., tab was inactive)
+            if (delta > 0.5) {
+                console.warn(`Large frame time detected: ${delta.toFixed(2)}s - capping to 100 ms`);
+                delta = 0.1; // Cap at 100ms
             }
             
             // Update FPS counter
             this.frameCount++;
             this.framesSinceLastFpsUpdate++;
             
-            if (now - this.lastFpsUpdate > 1000) { // Update FPS every second
-                this.fps = this.framesSinceLastFpsUpdate * 1000 / (now - this.lastFpsUpdate);
+            if (now - this.lastFpsUpdate > 1000) { // Update every second
+                this.fps = Math.round((this.framesSinceLastFpsUpdate * 1000) / (now - this.lastFpsUpdate));
+                
+                // Log FPS for debugging
+                console.log(`FPS: ${this.fps}`);
+                
+                // PERFORMANCE: Detect and handle low FPS
+                if (this.fps < 30 && !this.qualityReduced) {
+                    this.slowFrameCount++;
+                    
+                    if (this.slowFrameCount > 5) {
+                        console.warn("Low FPS detected, reducing quality settings");
+                        this.reduceQuality();
+                        this.qualityReduced = true;
+                    }
+                } else {
+                    this.slowFrameCount = 0;
+                }
+                
                 this.lastFpsUpdate = now;
                 this.framesSinceLastFpsUpdate = 0;
-                
-                // Log FPS in debug mode
-                if (this.debugMode) {
-                    console.log(`FPS: ${this.fps.toFixed(1)}`);
-                }
-                
-                // CRITICAL FIX: Check for consistently low FPS and take action
-                if (this.fps < 20 && !this.lowFpsWarningShown) {
-                    console.warn("Low FPS detected:", this.fps.toFixed(1), "- reducing quality settings");
-                    this.reduceQuality();
-                    this.lowFpsWarningShown = true;
-                }
             }
             
-            this.lastTime = now;
+            // Only update and render if the game is running
+            if (this.isRunning) {
+                // Update game state
+                this.update(now, delta);
+                
+                // Render the scene
+                this.renderScene();
+            }
         } catch (error) {
             console.error("Error in animation loop:", error);
-            // Continue animation despite errors
-            this.lastTime = performance.now();
+            
+            // PERFORMANCE: Don't stop the animation loop on error
+            // Just log the error and continue
         }
     }
     
     // Separate rendering function to ensure it's always called
     renderScene() {
         try {
-            // CRITICAL FIX: Always check if renderer, scene, and camera exist
-            if (!this.renderer) {
-                console.error("Cannot render: renderer is null");
+            // Skip rendering if essential components are missing
+            if (!this.renderer || !this.scene || !this.camera) {
+                console.warn("Cannot render: missing renderer, scene, or camera");
                 return;
             }
             
-            if (!this.scene) {
-                console.error("Cannot render: scene is null");
-                return;
-            }
-            
-            if (!this.camera) {
-                console.error("Cannot render: camera is null");
-                return;
-            }
-            
-            // Update orbit controls if they exist
-            if (this.controls && this.controls.update) {
-                this.controls.update();
-            }
-            
-            // CRITICAL FIX: Ensure the scene is visible by checking if there are objects
-            if (this.scene.children.length === 0 && !this.sceneEmptyWarningShown) {
-                console.warn("Scene has no objects - adding emergency sphere");
-                this.addEmergencySphere();
-                this.sceneEmptyWarningShown = true;
-            }
-            
-            // CRITICAL FIX: Check if camera is looking at something
-            if (this.camera && this.scene.children.length > 0) {
-                const testSphere = this.scene.getObjectByName("TestSphere") || this.scene.getObjectByName("EmergencySphere");
-                if (testSphere && !this.cameraTargetSet) {
-                    this.camera.lookAt(testSphere.position);
-                    this.cameraTargetSet = true;
+            // PERFORMANCE: Check if canvas is visible before rendering
+            const canvas = this.renderer.domElement;
+            if (canvas) {
+                const rect = canvas.getBoundingClientRect();
+                if (rect.width === 0 || rect.height === 0) {
+                    // Skip rendering for invisible canvas
+                    return;
                 }
             }
             
-            // Render the scene
-            this.renderer.render(this.scene, this.camera);
-            
-            // CRITICAL FIX: Force a second render after a short delay if we're in emergency mode
-            if (this.emergencyInitialized && !this.emergencyRenderScheduled) {
-                this.emergencyRenderScheduled = true;
-                setTimeout(() => {
-                    if (this.renderer && this.scene && this.camera) {
-                        this.renderer.render(this.scene, this.camera);
-                    }
-                    this.emergencyRenderScheduled = false;
-                }, 100);
+            // PERFORMANCE: Use a simpler render path for low-end devices
+            if (this.qualityReduced) {
+                // Disable any post-processing
+                this.renderer.render(this.scene, this.camera);
+            } else {
+                // Use normal rendering path
+                this.renderer.render(this.scene, this.camera);
             }
         } catch (error) {
             console.error("Error rendering scene:", error);
-            // Try to recover by creating emergency objects
-            this.addEmergencySphere();
         }
     }
     
@@ -1688,25 +1763,81 @@ class Game {
         }
     }
     
-    // Add a method to reduce quality for better performance
+    // Add a method to reduce quality settings
     reduceQuality() {
-        if (this.qualityReduced) return; // Only reduce once
-        
-        console.log("Reducing quality settings for better performance");
-        
-        // Reduce renderer pixel ratio
-        if (this.renderer) {
-            const currentPixelRatio = this.renderer.getPixelRatio();
-            if (currentPixelRatio > 1) {
-                this.renderer.setPixelRatio(currentPixelRatio - 0.5);
-                console.log(`Reduced pixel ratio to ${this.renderer.getPixelRatio()}`);
+        try {
+            console.log("Reducing quality settings for better performance");
+            
+            // Reduce renderer pixel ratio
+            if (this.renderer) {
+                this.renderer.setPixelRatio(1);
+                console.log("Reduced pixel ratio to 1");
             }
+            
+            // Disable shadows
+            if (this.renderer) {
+                this.renderer.shadowMap.enabled = false;
+                console.log("Disabled shadows");
+            }
+            
+            // Reduce geometry detail in the scene
+            if (this.scene) {
+                this.scene.traverse(object => {
+                    // Reduce geometry detail for meshes
+                    if (object.isMesh && object.geometry) {
+                        // Skip essential objects
+                        if (object.name === "spacecraft" || object.name === "Earth") {
+                            return;
+                        }
+                        
+                        // Try to simplify geometry if possible
+                        if (typeof object.geometry.dispose === 'function') {
+                            // Store original geometry for reference
+                            const originalGeometry = object.geometry;
+                            
+                            // Create simplified geometry if possible
+                            if (object.geometry.isBufferGeometry && 
+                                object.geometry.attributes.position && 
+                                object.geometry.attributes.position.count > 100) {
+                                
+                                try {
+                                    // Reduce vertex count by creating a simpler geometry
+                                    if (object.geometry.type.includes('Sphere')) {
+                                        const radius = object.scale.x; // Approximate radius
+                                        const newGeometry = new THREE.SphereGeometry(
+                                            radius, 
+                                            8,  // reduced segments
+                                            8   // reduced segments
+                                        );
+                                        object.geometry = newGeometry;
+                                        console.log(`Simplified sphere geometry for ${object.name || 'unnamed object'}`);
+                                    }
+                                    
+                                    // Dispose of original geometry to free memory
+                                    originalGeometry.dispose();
+                                } catch (e) {
+                                    console.warn("Error simplifying geometry:", e);
+                                    // Restore original geometry if simplification fails
+                                    object.geometry = originalGeometry;
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                console.log("Reduced geometry detail in scene");
+            }
+            
+            // Force a garbage collection if possible
+            if (typeof window.gc === 'function') {
+                window.gc();
+                console.log("Forced garbage collection");
+            }
+            
+            console.log("Quality reduction complete");
+        } catch (error) {
+            console.error("Error reducing quality:", error);
         }
-        
-        // Disable antialiasing
-        // Note: We can't change this at runtime, but it's good to note for future implementations
-        
-        this.qualityReduced = true;
     }
 
     // Add a method to initialize input bindings
@@ -1786,9 +1917,15 @@ class Game {
                 this.initPhysics();
             }
             
+            // PERFORMANCE: Check device capability for adaptive loading
+            const isLowEndDevice = this.detectLowEndDevice();
+            
             // Create game world with proper error handling
             try {
-                this.gameWorld = new GameWorld(this.scene, this.loadingManager, this.physicsSystem);
+                // PERFORMANCE: Pass device capability to GameWorld for adaptive loading
+                this.gameWorld = new GameWorld(this.scene, this.loadingManager, this.physicsSystem, {
+                    lowEndDevice: isLowEndDevice
+                });
                 
                 // CRITICAL FIX: Set up callbacks for game world events
                 this.gameWorld.onSectorDiscovered = this.onSectorDiscovered.bind(this);
@@ -1799,11 +1936,18 @@ class Game {
                     this.showNotification(`Enemy ${type} destroyed!`, 'success');
                 };
                 
-                // CRITICAL FIX: Force immediate initialization of the solar system
-                // instead of waiting for the async initialize method
+                // PERFORMANCE: Load solar system with progressive detail
                 if (typeof this.gameWorld.createSolarSystem === 'function') {
-                    console.log("Forcing immediate solar system creation");
-                    this.gameWorld.createSolarSystem().then(() => {
+                    console.log("Creating solar system with progressive detail loading");
+                    
+                    // First create a minimal solar system for immediate visual feedback
+                    this.createMinimalSolarSystem();
+                    
+                    // Then load the full solar system asynchronously
+                    this.gameWorld.createSolarSystem({
+                        lowDetail: isLowEndDevice,
+                        progressiveLoading: true
+                    }).then(() => {
                         console.log("Solar system created successfully");
                         
                         // Force a render to show the solar system
@@ -2651,6 +2795,51 @@ class Game {
             }
         } catch (error) {
             console.error("Error adding emergency message:", error);
+        }
+    }
+    
+    // PERFORMANCE: Add a method to create a minimal solar system for immediate feedback
+    createMinimalSolarSystem() {
+        try {
+            console.log("Creating minimal solar system for immediate visual feedback");
+            
+            // Create a simple sun at the center
+            const sunGeometry = new THREE.SphereGeometry(100, 16, 16); // Reduced segments
+            const sunMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0xffff00,
+                emissive: 0xffff00,
+                emissiveIntensity: 1
+            });
+            const sun = new THREE.Mesh(sunGeometry, sunMaterial);
+            sun.position.set(0, 0, 0);
+            sun.name = "Sun";
+            this.scene.add(sun);
+            
+            // Create a simple Earth
+            const earthGeometry = new THREE.SphereGeometry(50, 16, 16); // Reduced segments
+            const earthMaterial = new THREE.MeshBasicMaterial({ color: 0x0066ff });
+            const earth = new THREE.Mesh(earthGeometry, earthMaterial);
+            earth.position.set(500, 0, 0);
+            earth.name = "Earth";
+            this.scene.add(earth);
+            
+            // Add a simple light
+            const light = new THREE.PointLight(0xffffff, 1, 2000);
+            light.position.set(0, 0, 0);
+            this.scene.add(light);
+            
+            // Position camera to see Earth
+            if (this.camera) {
+                this.camera.position.set(500, 200, 500);
+                this.camera.lookAt(earth.position);
+            }
+            
+            // Force a render
+            this.renderScene();
+            
+            console.log("Minimal solar system created for immediate feedback");
+        } catch (error) {
+            console.error("Error creating minimal solar system:", error);
         }
     }
 }

@@ -22,7 +22,7 @@ class FallbackAlienShip extends THREE.Object3D {
 }
 
 export class GameWorld {
-    constructor(scene, loadingManager, physicsSystem) {
+    constructor(scene, loadingManager, physicsSystem, options = {}) {
         this.scene = scene;
         this.loadingManager = loadingManager;
         this.physicsSystem = physicsSystem;
@@ -37,6 +37,25 @@ export class GameWorld {
         this.anomalies = []; // Track space anomalies
         this.currentSector = null;
         
+        // PERFORMANCE: Store options for adaptive loading
+        this.options = {
+            lowEndDevice: options.lowEndDevice || false,
+            progressiveLoading: options.progressiveLoading || false,
+            viewDistance: options.lowEndDevice ? 5000 : 10000,
+            maxVisiblePlanets: options.lowEndDevice ? 5 : 8,
+            maxVisibleAsteroids: options.lowEndDevice ? 50 : 200,
+            maxVisibleAliens: options.lowEndDevice ? 3 : 10
+        };
+        
+        // PERFORMANCE: Track player position for distance-based loading
+        this.playerPosition = new THREE.Vector3(0, 0, 0);
+        
+        // PERFORMANCE: Object pools for reusing entities
+        this.objectPools = {
+            asteroids: [],
+            particles: []
+        };
+        
         // Configuration
         this.config = {
             numSectors: 4,  // Limit the number of sectors for better performance
@@ -49,10 +68,17 @@ export class GameWorld {
         this.onPlanetDiscovered = null;
         this.onAnomalyDiscovered = null;
         
+        // PERFORMANCE: Track loading state
+        this.loadingState = {
+            solarSystemCreated: false,
+            starsCreated: false,
+            mothershipsCreated: false
+        };
+        
         // Initialize with a delay to prevent blocking
         setTimeout(() => this.initialize(), 0);
         
-        console.log("GameWorld constructor completed");
+        console.log("GameWorld constructor completed with options:", this.options);
     }
     
     async initialize() {
@@ -61,9 +87,16 @@ export class GameWorld {
             
             // Generate star field first for immediate visual feedback
             await this.generateStarField();
+            this.loadingState.starsCreated = true;
             
             // Create solar system
-            await this.createSolarSystem();
+            if (this.options.progressiveLoading) {
+                // For progressive loading, we'll create the solar system later
+                console.log("Solar system will be created progressively");
+            } else {
+                await this.createSolarSystem();
+                this.loadingState.solarSystemCreated = true;
+            }
             
             // Create the main mothership carrier near Earth
             const earth = this.planets.find(planet => planet.name === "Earth");
@@ -72,6 +105,7 @@ export class GameWorld {
                 new THREE.Vector3(0, 200, 0);
             
             this.createMothership(mothershipPosition);
+            this.loadingState.mothershipsCreated = true;
             
             // Create sectors with predefined data instead of dynamic generation
             this.sectors = [
@@ -95,6 +129,13 @@ export class GameWorld {
         } catch (error) {
             console.error("Error initializing game world:", error);
             return false;
+        }
+    }
+    
+    // PERFORMANCE: Update player position for distance-based loading
+    updatePlayerPosition(position) {
+        if (position) {
+            this.playerPosition.copy(position);
         }
     }
     
@@ -123,23 +164,34 @@ export class GameWorld {
             
             console.log(`Populating sector: ${sector.name}`);
             
-            // Add a single planet to the sector for simplicity
-            const planetPosition = this.getRandomPositionInSector(sector);
-            const planet = this.createPlanet(planetPosition);
-            if (planet) {
-                this.planets.push(planet);
+            // PERFORMANCE: Limit the number of objects based on device capability
+            const planetCount = this.options.lowEndDevice ? 1 : 2;
+            const asteroidFieldCount = this.options.lowEndDevice ? 1 : 2;
+            const alienCount = this.options.lowEndDevice ? 1 : 3;
+            
+            // Add planets to the sector
+            for (let i = 0; i < planetCount; i++) {
+                const planetPosition = this.getRandomPositionInSector(sector);
+                const planet = this.createPlanet(planetPosition);
+                if (planet) {
+                    this.planets.push(planet);
+                }
             }
             
-            // Add a single asteroid field
-            const asteroidField = this.createAsteroidField(sector);
-            if (asteroidField) {
-                this.asteroidFields.push(asteroidField);
+            // Add asteroid fields
+            for (let i = 0; i < asteroidFieldCount; i++) {
+                const asteroidField = this.createAsteroidField(sector);
+                if (asteroidField) {
+                    this.asteroidFields.push(asteroidField);
+                }
             }
             
-            // Add just one alien ship for performance
-            const alien = this.createAlienShip(sector);
-            if (alien) {
-                this.aliens.push(alien);
+            // Add alien ships
+            for (let i = 0; i < alienCount; i++) {
+                const alien = this.createAlienShip(sector);
+                if (alien) {
+                    this.aliens.push(alien);
+                }
             }
             
             // Mark sector as populated
@@ -187,12 +239,14 @@ export class GameWorld {
     }
     
     async generateStarField() {
-        // Create a star field (simple particle system)
+        // PERFORMANCE: Create a star field with fewer stars on low-end devices
         const geometry = new THREE.BufferGeometry();
         const vertices = [];
         
         // Create background stars
-        for (let i = 0; i < 10000; i++) {
+        const starCount = this.options.lowEndDevice ? 3000 : 10000;
+        
+        for (let i = 0; i < starCount; i++) {
             const x = (Math.random() - 0.5) * 20000;
             const y = (Math.random() - 0.5) * 20000;
             const z = (Math.random() - 0.5) * 20000;
@@ -240,8 +294,10 @@ export class GameWorld {
             // Random size and features
             const radius = 50 + Math.random() * 150;
             const hasRings = Math.random() > 0.7;
-            const hasMoons = Math.random() > 0.5;
-            const moonCount = hasMoons ? Math.floor(Math.random() * 3) + 1 : 0;
+            
+            // PERFORMANCE: Reduce complexity on low-end devices
+            const moonCount = this.options.lowEndDevice ? 0 : 
+                (Math.random() > 0.5 ? Math.floor(Math.random() * 3) + 1 : 0);
             
             // Random planet type
             const planetTypes = [
@@ -256,7 +312,7 @@ export class GameWorld {
             
             // Create planet with error handling
             try {
-                // Create planet
+                // PERFORMANCE: Create planet with appropriate level of detail
                 const planet = new Planet({
                     scene: this.scene,
                     position: position,
@@ -264,7 +320,8 @@ export class GameWorld {
                     type: type,
                     hasRings: hasRings,
                     moonCount: moonCount,
-                    loadingManager: this.loadingManager
+                    loadingManager: this.loadingManager,
+                    lowDetail: this.options.lowEndDevice
                 });
                 
                 // Add to physics system if available
@@ -305,7 +362,9 @@ export class GameWorld {
                     radius: 200,
                     density: 0.5,
                     physicsSystem: this.physicsSystem,
-                    loadingManager: this.loadingManager
+                    loadingManager: this.loadingManager,
+                    // PERFORMANCE: Pass low detail flag
+                    lowDetail: this.options.lowEndDevice
                 });
             }
             
@@ -314,7 +373,11 @@ export class GameWorld {
             
             // Random field properties
             const radius = 200 + Math.random() * 400;
-            const density = 0.5 + Math.random() * 1.0;
+            
+            // PERFORMANCE: Reduce density on low-end devices
+            const density = this.options.lowEndDevice ? 
+                (0.2 + Math.random() * 0.3) : // Lower density for low-end
+                (0.5 + Math.random() * 1.0);  // Normal density
             
             // Create asteroid field
             const asteroidField = new AsteroidField({
@@ -323,7 +386,9 @@ export class GameWorld {
                 radius: radius,
                 density: density,
                 physicsSystem: this.physicsSystem,
-                loadingManager: this.loadingManager
+                loadingManager: this.loadingManager,
+                // PERFORMANCE: Pass low detail flag
+                lowDetail: this.options.lowEndDevice
             });
             
             return asteroidField;
@@ -666,8 +731,27 @@ export class GameWorld {
     }
     
     update(delta, playerPosition) {
+        // PERFORMANCE: Update player position for distance-based loading
+        if (playerPosition) {
+            this.updatePlayerPosition(playerPosition);
+        }
+        
+        // PERFORMANCE: Implement distance-based updates
+        // Only update objects that are within the view distance
+        const viewDistance = this.options.viewDistance;
+        
         // Update all planets
         for (const planet of this.planets) {
+            // PERFORMANCE: Skip distant planets
+            if (playerPosition && planet.position.distanceTo(playerPosition) > viewDistance) {
+                // Skip detailed updates for distant planets
+                if (planet.updateRotation) {
+                    // Only update rotation for distant planets
+                    planet.updateRotation(delta);
+                }
+                continue;
+            }
+            
             planet.update(delta);
             
             // If planet has orbit target, update orbit
@@ -698,6 +782,11 @@ export class GameWorld {
         
         // Update all anomalies
         for (const anomaly of this.anomalies) {
+            // PERFORMANCE: Skip distant anomalies
+            if (playerPosition && anomaly.position.distanceTo(playerPosition) > viewDistance) {
+                continue;
+            }
+            
             anomaly.update(delta);
             
             // Check for spacecraft interaction if player is nearby
@@ -709,16 +798,31 @@ export class GameWorld {
         
         // Update all aliens
         for (const alien of this.aliens) {
+            // PERFORMANCE: Skip distant aliens
+            if (playerPosition && alien.position.distanceTo(playerPosition) > viewDistance) {
+                continue;
+            }
+            
             alien.update(delta);
         }
         
         // Update all asteroid fields
         for (const field of this.asteroidFields) {
+            // PERFORMANCE: Skip distant asteroid fields
+            if (playerPosition && field.position.distanceTo(playerPosition) > viewDistance) {
+                continue;
+            }
+            
             field.update(delta);
         }
         
         // Update all nebulae
         for (const nebula of this.nebulae) {
+            // PERFORMANCE: Skip distant nebulae
+            if (playerPosition && nebula.position.distanceTo(playerPosition) > viewDistance) {
+                continue;
+            }
+            
             nebula.update(delta);
         }
         
@@ -817,9 +921,15 @@ export class GameWorld {
         }
     }
     
-    // Create our solar system with Earth and other planets
-    async createSolarSystem() {
-        console.log("Creating Solar System...");
+    // PERFORMANCE: Add a method to create solar system with options
+    async createSolarSystem(options = {}) {
+        console.log("Creating Solar System with options:", options);
+        
+        // Merge options with defaults
+        const createOptions = {
+            lowDetail: options.lowDetail || this.options.lowEndDevice,
+            progressiveLoading: options.progressiveLoading || this.options.progressiveLoading
+        };
         
         // Create the Sun
         const sun = new Planet({
@@ -828,7 +938,8 @@ export class GameWorld {
             radius: 300,
             textureType: 'sun',
             rotationSpeed: 0.005,
-            gravityFactor: 5000
+            gravityFactor: 5000,
+            lowDetail: createOptions.lowDetail
         });
         
         sun.name = "Sun";
@@ -854,36 +965,23 @@ export class GameWorld {
             { name: "Neptune", distance: 3000, radius: 85, textureType: 'ice', rotationSpeed: 0.014 }
         ];
         
-        // Create each planet
-        for (const data of planetData) {
-            // Calculate position based on distance from sun
-            const angle = Math.random() * Math.PI * 2; // Random angle around the sun
-            const x = Math.cos(angle) * data.distance;
-            const z = Math.sin(angle) * data.distance;
-            const position = new THREE.Vector3(x, 0, z);
+        // PERFORMANCE: For progressive loading, create planets in batches
+        if (createOptions.progressiveLoading) {
+            // First batch: Create inner planets immediately (Mercury to Mars)
+            await this.createPlanetBatch(planetData.slice(0, 4), createOptions);
             
-            const planet = new Planet({
-                scene: this.scene,
-                position: position,
-                radius: data.radius,
-                textureType: data.textureType,
-                rotationSpeed: data.rotationSpeed,
-                gravityFactor: data.radius * 10,
-                hasRings: data.hasRings || false
-            });
-            
-            planet.name = data.name;
-            this.planets.push(planet);
-            
-            // Add physics if available
-            if (this.physicsSystem) {
-                this.physicsSystem.addObject(planet);
-                if (this.physicsSystem.collisionGroups) {
-                    planet.collisionGroup = this.physicsSystem.collisionGroups.planet;
-                }
-            }
-            
-            console.log(`Created planet: ${data.name}`);
+            // Second batch: Create outer planets with a delay
+            setTimeout(() => {
+                this.createPlanetBatch(planetData.slice(4), createOptions)
+                    .then(() => {
+                        console.log("All planets created");
+                        this.loadingState.solarSystemCreated = true;
+                    });
+            }, 1000);
+        } else {
+            // Create all planets at once
+            await this.createPlanetBatch(planetData, createOptions);
+            this.loadingState.solarSystemCreated = true;
         }
         
         // Add Earth's moon
@@ -901,7 +999,8 @@ export class GameWorld {
                 radius: 20,
                 textureType: 'moon',
                 rotationSpeed: 0.005,
-                gravityFactor: 200
+                gravityFactor: 200,
+                lowDetail: createOptions.lowDetail
             });
             
             moon.name = "Moon";
@@ -920,6 +1019,48 @@ export class GameWorld {
             }
             
             console.log("Created Earth's moon");
+        }
+        
+        return true;
+    }
+    
+    // PERFORMANCE: Helper method to create planets in batches
+    async createPlanetBatch(planetDataArray, options) {
+        for (const data of planetDataArray) {
+            // Calculate position based on distance from sun
+            const angle = Math.random() * Math.PI * 2; // Random angle around the sun
+            const x = Math.cos(angle) * data.distance;
+            const z = Math.sin(angle) * data.distance;
+            const position = new THREE.Vector3(x, 0, z);
+            
+            const planet = new Planet({
+                scene: this.scene,
+                position: position,
+                radius: data.radius,
+                textureType: data.textureType,
+                rotationSpeed: data.rotationSpeed,
+                gravityFactor: data.radius * 10,
+                hasRings: data.hasRings || false,
+                lowDetail: options.lowDetail
+            });
+            
+            planet.name = data.name;
+            this.planets.push(planet);
+            
+            // Add physics if available
+            if (this.physicsSystem) {
+                this.physicsSystem.addObject(planet);
+                if (this.physicsSystem.collisionGroups) {
+                    planet.collisionGroup = this.physicsSystem.collisionGroups.planet;
+                }
+            }
+            
+            console.log(`Created planet: ${data.name}`);
+            
+            // PERFORMANCE: Add a small delay between planet creation to prevent frame drops
+            if (options.progressiveLoading) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
         }
     }
     
