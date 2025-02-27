@@ -164,14 +164,14 @@ class Game {
             // Log initial camera position
             console.log("Initial camera position:", this.camera.position);
             
-            // Create renderer with performance optimizations
+            // Create renderer with simpler settings for better performance
             this.renderer = new THREE.WebGLRenderer({
-                antialias: window.innerWidth > 1200, // Only use antialiasing on larger screens
+                antialias: false, // Disable antialiasing for better performance
                 powerPreference: 'high-performance',
-                precision: 'mediump', // Use medium precision for better performance
-                logarithmicDepthBuffer: true // Better for space scenes with large scale differences
+                precision: 'lowp', // Use low precision for better performance
+                logarithmicDepthBuffer: false // Disable for better performance
             });
-            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Limit pixel ratio for performance
+            this.renderer.setPixelRatio(1); // Use a lower pixel ratio for better performance
             this.renderer.setSize(window.innerWidth, window.innerHeight);
             this.renderer.setClearColor(0x000000);
             
@@ -187,7 +187,7 @@ class Game {
             this.scene.add(directionalLight);
             
             // Add a simple object to verify rendering is working
-            const testGeometry = new THREE.SphereGeometry(50, 16, 16); // Reduced segments for better performance
+            const testGeometry = new THREE.SphereGeometry(50, 8, 8); // Reduced segments for better performance
             const testMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
             const testSphere = new THREE.Mesh(testGeometry, testMaterial);
             testSphere.position.set(0, 0, 0);
@@ -1295,14 +1295,15 @@ class Game {
             // Render scene
             if (this.renderer && this.scene && this.camera) {
                 // Debug camera and scene
-                if (this.debugMode) {
-                    console.log(`Camera position: ${this.camera.position.x.toFixed(2)}, ${this.camera.position.y.toFixed(2)}, ${this.camera.position.z.toFixed(2)}`);
-                    console.log(`Scene children count: ${this.scene.children.length}`);
-                }
+                console.log(`Camera position: ${this.camera.position.x.toFixed(2)}, ${this.camera.position.y.toFixed(2)}, ${this.camera.position.z.toFixed(2)}`);
+                console.log(`Scene children count: ${this.scene.children.length}`);
                 
                 this.renderer.render(this.scene, this.camera);
             } else {
                 console.warn("Cannot render: missing renderer, scene, or camera");
+                if (!this.renderer) console.warn("Renderer is missing");
+                if (!this.scene) console.warn("Scene is missing");
+                if (!this.camera) console.warn("Camera is missing");
             }
             
             // Increment frame counter
