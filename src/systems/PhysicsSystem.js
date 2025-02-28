@@ -507,129 +507,200 @@ export class PhysicsSystem {
     
     handleCollision(object1, object2, penetration) {
         try {
-            // Validate objects
+            // Skip if either object is null
             if (!object1 || !object2) {
                 return;
             }
             
-        // Let the objects handle their own collision responses if they can
-        if (object1.onCollision) {
-                try {
-            object1.onCollision(object2);
-                } catch (error) {
-                    console.warn('PhysicsSystem: Error in object1.onCollision callback', error);
+            // Get object types and properties
+            const isSpacecraft = (obj) => obj.constructor && obj.constructor.name === 'Spacecraft';
+            const isPlanet = (obj) => obj.constructor && obj.constructor.name === 'Planet';
+            const isMothership = (obj) => obj.constructor && obj.constructor.name === 'Mothership';
+            
+            // Handle spacecraft-planet collisions
+            if ((isSpacecraft(object1) && isPlanet(object2)) || (isSpacecraft(object2) && isPlanet(object1))) {
+                const spacecraft = isSpacecraft(object1) ? object1 : object2;
+                const planet = isSpacecraft(object1) ? object2 : object1;
+                
+                // Calculate direction from planet to spacecraft
+                const direction = new THREE.Vector3().subVectors(
+                    spacecraft.position,
+                    planet.position
+                ).normalize();
+                
+                // Calculate bounce factor (0.5 = moderate bounce)
+                const bounceFactor = 0.5;
+                
+                // Calculate reflection of velocity
+                const dot = spacecraft.velocity.dot(direction);
+                const reflection = new THREE.Vector3().copy(direction).multiplyScalar(2 * dot);
+                
+                // Apply bounce effect
+                spacecraft.velocity.sub(reflection).multiplyScalar(bounceFactor);
+                
+                // Move spacecraft out of collision
+                const pushDistance = planet.radius * 0.1; // Push out by 10% of planet radius
+                spacecraft.position.add(direction.multiplyScalar(pushDistance));
+                
+                // Apply damage to spacecraft if collision is high velocity
+                const impactSpeed = Math.abs(dot);
+                if (impactSpeed > 20 && spacecraft.takeDamage) {
+                    const damage = Math.floor(impactSpeed / 10);
+                    spacecraft.takeDamage(damage);
+                    
+                    // Visual feedback
+                    if (spacecraft.flash) {
+                        spacecraft.flash(0xff0000, 0.3);
+                    }
                 }
-        }
-        
-        if (object2.onCollision) {
-                try {
-            object2.onCollision(object1);
-                } catch (error) {
-                    console.warn('PhysicsSystem: Error in object2.onCollision callback', error);
-                }
+                
+                console.log("Spacecraft-Planet collision handled");
             }
             
-            // Calculate damage based on collision severity
-            try {
-                const collisionSpeed = object1.velocity && object2.velocity ? 
-                    new THREE.Vector3().subVectors(object1.velocity, object2.velocity).length() : 
-                    (object1.velocity ? object1.velocity.length() : 
-                     (object2.velocity ? object2.velocity.length() : 0));
+            // Handle spacecraft-mothership collisions
+            if ((isSpacecraft(object1) && isMothership(object2)) || (isSpacecraft(object2) && isMothership(object1))) {
+                const spacecraft = isSpacecraft(object1) ? object1 : object2;
+                const mothership = isSpacecraft(object1) ? object2 : object1;
                 
-                // Only apply damage for significant collisions
-                if (collisionSpeed > 20) {
-                    // Calculate damage based on collision speed
-                    const damageMultiplier = 0.1;  // Adjust based on gameplay testing
-                    const damage = collisionSpeed * damageMultiplier;
-                    
-                    // Apply damage to both objects if they can take damage
-                    if (object1.takeDamage) {
-                        object1.takeDamage(damage);
+                // Check if spacecraft is near docking bay
+                if (mothership.isInDockingRange && mothership.isInDockingRange(spacecraft)) {
+                    // Handle docking logic if needed
+                    if (mothership.dockSpacecraft) {
+                        mothership.dockSpacecraft(spacecraft);
                     }
-                    
-                    if (object2.takeDamage) {
-                        object2.takeDamage(damage);
-                    }
-                }
-            } catch (error) {
-                console.warn('PhysicsSystem: Error calculating collision damage', error);
-            }
-            
-            // Handle physical collision response
-            if (object1.velocity && object2.velocity) {
-                // Full elastic collision with mass consideration
-                const mass1 = object1.mass || 1;
-                const mass2 = object2.mass || 1;
-                
-                // Calculate velocity changes for both objects
-                const v1 = object1.velocity.clone();
-                const v2 = object2.velocity.clone();
-                
-                // Collision normal
-                const normal = penetration.clone().normalize();
-                
-                // Relative velocity along normal
-                const relativeVelocity = new THREE.Vector3().subVectors(v2, v1);
-                const velocityAlongNormal = relativeVelocity.dot(normal);
-                
-                // Don't resolve if velocities are separating
-                if (velocityAlongNormal > 0) {
                     return;
                 }
                 
-                // Calculate impulse scalar
-                const restitution = 0.3; // Bounciness factor
-                const impulseMagnitude = -(1 + restitution) * velocityAlongNormal / 
-                                       (1/mass1 + 1/mass2);
+                // Calculate direction from mothership to spacecraft
+                const direction = new THREE.Vector3().subVectors(
+                    spacecraft.position,
+                    mothership.position
+                ).normalize();
                 
-                // Apply impulse
-                const impulse = normal.multiplyScalar(impulseMagnitude);
+                // Calculate bounce factor (0.3 = softer bounce than planets)
+                const bounceFactor = 0.3;
                 
-                // Update velocities
-                object1.velocity.sub(impulse.clone().multiplyScalar(1/mass1));
-                object2.velocity.add(impulse.clone().multiplyScalar(1/mass2));
+                // Calculate reflection of velocity
+                const dot = spacecraft.velocity.dot(direction);
+                const reflection = new THREE.Vector3().copy(direction).multiplyScalar(2 * dot);
                 
-                // Move objects out of collision
-                if (penetration.length() > 0.1) {
-                    const pushFactor1 = mass2 / (mass1 + mass2);
-                    const pushFactor2 = mass1 / (mass1 + mass2);
+                // Apply bounce effect
+                spacecraft.velocity.sub(reflection).multiplyScalar(bounceFactor);
+                
+                // Move spacecraft out of collision
+                const pushDistance = 10; // Fixed push distance
+                spacecraft.position.add(direction.multiplyScalar(pushDistance));
+                
+                // Apply minor damage to spacecraft if collision is high velocity
+                const impactSpeed = Math.abs(dot);
+                if (impactSpeed > 30 && spacecraft.takeDamage) {
+                    const damage = Math.floor(impactSpeed / 20);
+                    spacecraft.takeDamage(damage);
                     
-                    object1.position.add(penetration.clone().multiplyScalar(pushFactor1));
-                    object2.position.sub(penetration.clone().multiplyScalar(pushFactor2));
+                    // Visual feedback
+                    if (spacecraft.flash) {
+                        spacecraft.flash(0xff0000, 0.3);
+                    }
                 }
+                
+                console.log("Spacecraft-Mothership collision handled");
+            }
+            
+        } catch (error) {
+            console.error("Error handling collision:", error);
         }
-        // If only one object has velocity, make it bounce
-        else if (object1.velocity) {
-            // Reflect the velocity based on collision normal
-                const normal = penetration.clone().normalize();
-                const dot = object1.velocity.dot(normal);
+    }
+    
+    createCollisionEffect(position, intensity) {
+        try {
+            // Skip if position is invalid
+            if (!position) {
+                return;
+            }
             
-                // Only bounce if moving toward the object
-                if (dot < 0) {
-            // v' = v - 2(v·n)n - reflection formula
-            object1.velocity.sub(normal.multiplyScalar(2 * dot));
+            // Skip if intensity is too low
+            if (intensity < 5) {
+                return;
+            }
             
-                    // Reduce velocity to simulate energy loss
-                    object1.velocity.multiplyScalar(0.7);
+            // Create a simple particle effect for collision
+            const particleCount = Math.min(20, Math.floor(intensity / 2));
             
-            // Move object out of collision
-                    object1.position.add(penetration);
+            // Check if we have a scene reference
+            if (!this.scene) {
+                // Try to find scene from one of the physics objects
+                for (const obj of this.objects) {
+                    if (obj && obj.scene) {
+                        this.scene = obj.scene;
+                        break;
+                    }
                 }
-        }
-        else if (object2.velocity) {
-            // Same logic but for object2
-                const normal = penetration.clone().normalize().negate();
-                const dot = object2.velocity.dot(normal);
-            
-                // Only bounce if moving toward the object
-                if (dot < 0) {
-            object2.velocity.sub(normal.multiplyScalar(2 * dot));
-                    object2.velocity.multiplyScalar(0.7);
-                    object2.position.add(penetration.clone().negate());
+                
+                // If still no scene, we can't create visual effects
+                if (!this.scene) {
+                    return;
                 }
             }
+            
+            // Create particles
+            for (let i = 0; i < particleCount; i++) {
+                // Create a small sphere for each particle
+                const geometry = new THREE.SphereGeometry(0.5, 4, 4);
+                const material = new THREE.MeshBasicMaterial({
+                    color: 0xffaa00,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                
+                const particle = new THREE.Mesh(geometry, material);
+                
+                // Position at collision point
+                particle.position.copy(position);
+                
+                // Add random velocity
+                const velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * intensity * 0.5,
+                    (Math.random() - 0.5) * intensity * 0.5,
+                    (Math.random() - 0.5) * intensity * 0.5
+                );
+                
+                // Add to scene
+                this.scene.add(particle);
+                
+                // Animate and remove after a short time
+                const startTime = Date.now();
+                const duration = 500 + Math.random() * 500; // 0.5-1 second
+                
+                const animateParticle = () => {
+                    const elapsed = Date.now() - startTime;
+                    
+                    if (elapsed < duration) {
+                        // Move particle
+                        particle.position.add(velocity);
+                        
+                        // Slow down
+                        velocity.multiplyScalar(0.95);
+                        
+                        // Fade out
+                        particle.material.opacity = 0.8 * (1 - elapsed / duration);
+                        
+                        // Continue animation
+                        requestAnimationFrame(animateParticle);
+                    } else {
+                        // Remove particle
+                        this.scene.remove(particle);
+                        
+                        // Dispose resources
+                        particle.geometry.dispose();
+                        particle.material.dispose();
+                    }
+                };
+                
+                // Start animation
+                animateParticle();
+            }
         } catch (error) {
-            console.warn('PhysicsSystem: Error in handleCollision', error);
+            console.error("Error creating collision effect:", error);
         }
     }
 } 
