@@ -277,9 +277,12 @@ export class Spacecraft extends THREE.Object3D {
     accelerate(direction, delta) {
         // Add acceleration in the direction the spacecraft is facing
         // Note: In THREE.js, the default forward direction is negative Z
-        // So (0, 0, -1) is already the correct forward direction
         const forwardDirection = new THREE.Vector3(0, 0, -1);
+        
+        // Apply the spacecraft's current rotation to the forward vector
+        // This ensures we move in the direction the spacecraft is actually facing
         const accelerationVector = forwardDirection
+            .clone() // Clone to avoid modifying the original vector
             .applyQuaternion(this.quaternion)
             .multiplyScalar(this.acceleration * direction * delta);
             
@@ -289,6 +292,10 @@ export class Spacecraft extends THREE.Object3D {
         if (this.velocity.length() > this.maxSpeed) {
             this.velocity.normalize().multiplyScalar(this.maxSpeed);
         }
+        
+        // Debug info
+        console.log("Moving spacecraft forward in direction:", 
+            forwardDirection.clone().applyQuaternion(this.quaternion));
     }
     
     strafe(direction, delta) {

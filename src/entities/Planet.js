@@ -125,11 +125,14 @@ export class Planet extends THREE.Object3D {
                     const sunMaterial = new THREE.MeshBasicMaterial({
                         color: 0xffff00,
                         emissive: 0xffaa00,
-                        emissiveIntensity: 1
+                        emissiveIntensity: 1.5
                     });
                     
                     // Add surface details to the sun
                     this.addSurfaceFeatures('sun');
+                    
+                    // Add a point light to make the sun illuminate other objects
+                    this.addLightSource(0xffffaa, this.radius * 20, 2);
                     
                     return sunMaterial;
                     
@@ -138,11 +141,16 @@ export class Planet extends THREE.Object3D {
                     const earthMaterial = new THREE.MeshPhongMaterial({
                         color: 0x2233ff,
                         specular: 0x333333,
-                        shininess: 15
+                        shininess: 15,
+                        emissive: 0x001122,
+                        emissiveIntensity: 0.2
                     });
                     
                     // Add surface details to Earth
                     this.addSurfaceFeatures('earth');
+                    
+                    // Add a subtle light to Earth
+                    this.addLightSource(0x6688ff, this.radius * 5, 0.3);
                     
                     return earthMaterial;
                     
@@ -151,11 +159,16 @@ export class Planet extends THREE.Object3D {
                     const marsMaterial = new THREE.MeshPhongMaterial({
                         color: 0xaa3300,
                         specular: 0x222222,
-                        shininess: 5
+                        shininess: 5,
+                        emissive: 0x551100,
+                        emissiveIntensity: 0.2
                     });
                     
                     // Add surface details to Mars
                     this.addSurfaceFeatures('mars');
+                    
+                    // Add a subtle light to Mars
+                    this.addLightSource(0xaa5522, this.radius * 5, 0.3);
                     
                     return marsMaterial;
                     
@@ -164,11 +177,16 @@ export class Planet extends THREE.Object3D {
                     const venusMaterial = new THREE.MeshPhongMaterial({
                         color: 0xddaa88,
                         specular: 0x222222,
-                        shininess: 10
+                        shininess: 10,
+                        emissive: 0x553311,
+                        emissiveIntensity: 0.3
                     });
                     
                     // Add surface details to Venus
                     this.addSurfaceFeatures('venus');
+                    
+                    // Add a subtle light to Venus
+                    this.addLightSource(0xddaa88, this.radius * 5, 0.4);
                     
                     return venusMaterial;
                     
@@ -177,11 +195,16 @@ export class Planet extends THREE.Object3D {
                     const mercuryMaterial = new THREE.MeshPhongMaterial({
                         color: 0x888888,
                         specular: 0x222222,
-                        shininess: 20
+                        shininess: 20,
+                        emissive: 0x333333,
+                        emissiveIntensity: 0.2
                     });
                     
                     // Add surface details to Mercury
                     this.addSurfaceFeatures('mercury');
+                    
+                    // Add a subtle light to Mercury
+                    this.addLightSource(0x888888, this.radius * 4, 0.2);
                     
                     return mercuryMaterial;
                     
@@ -190,11 +213,16 @@ export class Planet extends THREE.Object3D {
                     const jupiterMaterial = new THREE.MeshPhongMaterial({
                         color: 0xddaa77,
                         specular: 0x222222,
-                        shininess: 10
+                        shininess: 10,
+                        emissive: 0x553311,
+                        emissiveIntensity: 0.3
                     });
                     
                     // Add surface details to Jupiter
                     this.addSurfaceFeatures('jupiter');
+                    
+                    // Add a subtle light to Jupiter
+                    this.addLightSource(0xddaa77, this.radius * 8, 0.5);
                     
                     return jupiterMaterial;
                     
@@ -203,11 +231,16 @@ export class Planet extends THREE.Object3D {
                     const saturnMaterial = new THREE.MeshPhongMaterial({
                         color: 0xddcc88,
                         specular: 0x222222,
-                        shininess: 10
+                        shininess: 10,
+                        emissive: 0x554422,
+                        emissiveIntensity: 0.3
                     });
                     
                     // Add surface details to Saturn
                     this.addSurfaceFeatures('saturn');
+                    
+                    // Add a subtle light to Saturn
+                    this.addLightSource(0xddcc88, this.radius * 8, 0.5);
                     
                     return saturnMaterial;
                     
@@ -216,11 +249,16 @@ export class Planet extends THREE.Object3D {
                     const iceMaterial = new THREE.MeshPhongMaterial({
                         color: 0x88aadd,
                         specular: 0x333333,
-                        shininess: 30
+                        shininess: 30,
+                        emissive: 0x223344,
+                        emissiveIntensity: 0.3
                     });
                     
                     // Add surface details to ice planet
                     this.addSurfaceFeatures('ice');
+                    
+                    // Add a subtle light to the ice planet
+                    this.addLightSource(0x88aadd, this.radius * 5, 0.4);
                     
                     return iceMaterial;
                     
@@ -229,11 +267,16 @@ export class Planet extends THREE.Object3D {
                     const moonMaterial = new THREE.MeshPhongMaterial({
                         color: 0xaaaaaa,
                         specular: 0x111111,
-                        shininess: 5
+                        shininess: 5,
+                        emissive: 0x222222,
+                        emissiveIntensity: 0.1
                     });
                     
                     // Add surface details to moon
                     this.addSurfaceFeatures('moon');
+                    
+                    // Add a very subtle light to the moon
+                    this.addLightSource(0xaaaaaa, this.radius * 3, 0.2);
                     
                     return moonMaterial;
                     
@@ -242,11 +285,16 @@ export class Planet extends THREE.Object3D {
                     const gasGiantMaterial = new THREE.MeshPhongMaterial({
                         color: 0xddaa77,
                         specular: 0x222222,
-                        shininess: 10
+                        shininess: 10,
+                        emissive: 0x553311,
+                        emissiveIntensity: 0.3
                     });
                     
                     // Add surface details to gas giant
                     this.addSurfaceFeatures('gas-giant');
+                    
+                    // Add a subtle light to the gas giant
+                    this.addLightSource(0xddaa77, this.radius * 8, 0.5);
                     
                     return gasGiantMaterial;
                     
@@ -262,11 +310,16 @@ export class Planet extends THREE.Object3D {
                     const terrestrialMaterial = new THREE.MeshPhongMaterial({
                         color: color,
                         specular: 0x333333,
-                        shininess: 15
+                        shininess: 15,
+                        emissive: color.clone().multiplyScalar(0.2),
+                        emissiveIntensity: 0.2
                     });
                     
                     // Add surface details to terrestrial planet
                     this.addSurfaceFeatures('terrestrial');
+                    
+                    // Add a subtle light to the terrestrial planet
+                    this.addLightSource(color, this.radius * 5, 0.3);
                     
                     return terrestrialMaterial;
             }
@@ -492,6 +545,15 @@ export class Planet extends THREE.Object3D {
             
             // Update cloud bands if they exist
             this.updateCloudBands(delta);
+            
+            // Update corona layers for sun
+            this.updateCoronaLayers(delta);
+            
+            // Update storms for gas giants
+            this.updateStorms(delta);
+            
+            // Update ocean glow for Earth-like planets
+            this.updateOceanGlow(delta);
             
             // PERFORMANCE: Update LOD based on distance to camera
             this.updateLOD();
@@ -731,62 +793,468 @@ export class Planet extends THREE.Object3D {
             
             switch (planetType) {
                 case 'sun':
-                    // Add solar flares and prominences
+                    // Add solar flares and prominences with enhanced glow
                     this.addSolarFeatures();
+                    
+                    // Add a pulsing corona effect
+                    this.addPulsingCorona();
                     break;
                     
                 case 'earth':
-                    // Add continents and clouds
-                    this.addContinents();
-                    this.addClouds(0.1); // Thin cloud layer
+                    // Add continents and clouds with more detail
+                    this.addContinents(0.7); // Higher density
+                    this.addClouds(0.2); // Thicker cloud layer
+                    this.addOceanGlow(); // Add subtle ocean glow
                     break;
                     
                 case 'mars':
-                    // Add craters and canyons
-                    this.addCraters(15);
+                    // Add craters, canyons and enhanced polar caps
+                    this.addCraters(20);
                     this.addPolarCaps();
+                    this.addCanyons(); // Add Valles Marineris-like canyons
                     break;
                     
                 case 'venus':
-                    // Add thick cloud cover
-                    this.addClouds(0.3); // Thick cloud layer
+                    // Add thick cloud cover with swirling patterns
+                    this.addClouds(0.4); // Very thick cloud layer
+                    this.addVolcanicFeatures(); // Add volcanic features
                     break;
                     
                 case 'mercury':
-                    // Add many craters
-                    this.addCraters(25);
+                    // Add many craters and surface cracks
+                    this.addCraters(30);
+                    this.addSurfaceCracks();
                     break;
                     
                 case 'jupiter':
                 case 'saturn':
                 case 'gas-giant':
-                    // Add cloud bands
+                    // Add cloud bands with dynamic swirling patterns
                     this.addCloudBands();
+                    this.addStorms(); // Add storm systems
                     break;
                     
                 case 'ice':
-                    // Add ice cracks and ridges
+                    // Add ice cracks, ridges and crystalline structures
                     this.addIceFeatures();
+                    this.addCrystallineStructures();
                     break;
                     
                 case 'moon':
-                    // Add craters
-                    this.addCraters(20);
+                    // Add craters and subtle surface details
+                    this.addCraters(25);
+                    this.addLunarMaria(); // Add dark maria regions
                     break;
                     
                 case 'terrestrial':
                 default:
-                    // Add random features
-                    if (Math.random() > 0.5) this.addContinents();
-                    if (Math.random() > 0.7) this.addClouds(0.1);
-                    if (Math.random() > 0.6) this.addCraters(10);
+                    // Add random features with more variety
+                    if (Math.random() > 0.4) this.addContinents(0.5 + Math.random() * 0.3);
+                    if (Math.random() > 0.5) this.addClouds(0.1 + Math.random() * 0.2);
+                    if (Math.random() > 0.4) this.addCraters(5 + Math.floor(Math.random() * 15));
+                    if (Math.random() > 0.7) this.addVolcanicFeatures();
                     break;
             }
+            
+            // Add a subtle ambient occlusion effect to enhance depth perception
+            this.addAmbientOcclusion();
         } catch (error) {
             console.error("Error adding surface features:", error);
         }
     }
 
+    // Add a pulsing corona effect for the sun
+    addPulsingCorona() {
+        try {
+            // Create multiple corona layers with different sizes and opacities
+            for (let i = 0; i < 3; i++) {
+                const size = 1.3 + (i * 0.3); // Increasing sizes
+                const coronaGeometry = new THREE.SphereGeometry(this.radius * size, 32, 32);
+                const coronaMaterial = new THREE.MeshBasicMaterial({
+                    color: new THREE.Color(0xffdd00).lerp(new THREE.Color(0xff5500), i * 0.2),
+                    transparent: true,
+                    opacity: 0.3 - (i * 0.08),
+                    side: THREE.BackSide,
+                    blending: THREE.AdditiveBlending
+                });
+                
+                const corona = new THREE.Mesh(coronaGeometry, coronaMaterial);
+                this.mesh.add(corona);
+                
+                // Store for animation
+                if (!this.coronaLayers) this.coronaLayers = [];
+                this.coronaLayers.push({
+                    mesh: corona,
+                    baseSize: size,
+                    pulseSpeed: 0.0005 + (Math.random() * 0.0005),
+                    pulsePhase: Math.random() * Math.PI * 2
+                });
+            }
+        } catch (error) {
+            console.error("Error adding pulsing corona:", error);
+        }
+    }
+
+    // Add canyons to Mars-like planets
+    addCanyons() {
+        try {
+            // Create a large canyon (like Valles Marineris)
+            const canyonWidth = this.radius * 0.1;
+            const canyonLength = this.radius * 1.2;
+            const canyonDepth = this.radius * 0.05;
+            
+            const canyonGeometry = new THREE.BoxGeometry(canyonWidth, canyonDepth, canyonLength);
+            const canyonMaterial = new THREE.MeshStandardMaterial({
+                color: 0x551100,
+                roughness: 0.9,
+                metalness: 0.1,
+                emissive: 0x220500,
+                emissiveIntensity: 0.2
+            });
+            
+            const canyon = new THREE.Mesh(canyonGeometry, canyonMaterial);
+            
+            // Position on the surface
+            const phi = Math.PI / 2; // Equator
+            const theta = Math.random() * Math.PI * 2;
+            
+            canyon.position.x = this.radius * 1.01 * Math.sin(phi) * Math.cos(theta);
+            canyon.position.y = this.radius * 1.01 * Math.sin(phi) * Math.sin(theta);
+            canyon.position.z = this.radius * 1.01 * Math.cos(phi);
+            
+            // Orient along the surface
+            canyon.lookAt(canyon.position.clone().multiplyScalar(2));
+            
+            // Random rotation around the normal
+            canyon.rotateOnAxis(new THREE.Vector3(0, 0, 1), Math.random() * Math.PI * 2);
+            
+            // Add to the mesh
+            this.mesh.add(canyon);
+        } catch (error) {
+            console.error("Error adding canyons:", error);
+        }
+    }
+
+    // Add volcanic features
+    addVolcanicFeatures() {
+        try {
+            // Add 2-5 volcanoes
+            const volcanoCount = 2 + Math.floor(Math.random() * 4);
+            
+            for (let i = 0; i < volcanoCount; i++) {
+                // Create a volcano cone
+                const volcanoGeometry = new THREE.ConeGeometry(
+                    this.radius * 0.15, 
+                    this.radius * 0.2, 
+                    16
+                );
+                
+                const volcanoMaterial = new THREE.MeshStandardMaterial({
+                    color: 0x554433,
+                    roughness: 0.8,
+                    metalness: 0.1
+                });
+                
+                const volcano = new THREE.Mesh(volcanoGeometry, volcanoMaterial);
+                
+                // Position randomly on the surface
+                const theta = Math.random() * Math.PI * 2;
+                const phi = (Math.random() * 0.8) + 0.1; // Avoid poles
+                
+                volcano.position.x = this.radius * 0.95 * Math.sin(phi) * Math.cos(theta);
+                volcano.position.y = this.radius * 0.95 * Math.sin(phi) * Math.sin(theta);
+                volcano.position.z = this.radius * 0.95 * Math.cos(phi);
+                
+                // Orient to point outward from center
+                volcano.lookAt(new THREE.Vector3(0, 0, 0));
+                
+                // Add lava at the top
+                const lavaGeometry = new THREE.CircleGeometry(this.radius * 0.05, 16);
+                const lavaMaterial = new THREE.MeshBasicMaterial({
+                    color: 0xff3300,
+                    emissive: 0xff2200,
+                    emissiveIntensity: 1
+                });
+                
+                const lava = new THREE.Mesh(lavaGeometry, lavaMaterial);
+                lava.position.y = this.radius * 0.1;
+                lava.rotation.x = -Math.PI / 2;
+                
+                volcano.add(lava);
+                
+                // Add a point light for the lava
+                const lavaLight = new THREE.PointLight(0xff5500, 1, this.radius * 2);
+                lavaLight.position.copy(lava.position);
+                volcano.add(lavaLight);
+                
+                // Add to the mesh
+                this.mesh.add(volcano);
+            }
+        } catch (error) {
+            console.error("Error adding volcanic features:", error);
+        }
+    }
+
+    // Add surface cracks (for Mercury and similar planets)
+    addSurfaceCracks() {
+        try {
+            // Add 10-20 surface cracks
+            const crackCount = 10 + Math.floor(Math.random() * 11);
+            
+            for (let i = 0; i < crackCount; i++) {
+                // Create a crack
+                const crackLength = this.radius * (0.3 + Math.random() * 0.7);
+                const crackWidth = this.radius * 0.01;
+                const crackDepth = this.radius * 0.01;
+                
+                const crackGeometry = new THREE.BoxGeometry(crackWidth, crackDepth, crackLength);
+                const crackMaterial = new THREE.MeshStandardMaterial({
+                    color: 0x333333,
+                    roughness: 0.9,
+                    metalness: 0.1
+                });
+                
+                const crack = new THREE.Mesh(crackGeometry, crackMaterial);
+                
+                // Position randomly on the surface
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI;
+                
+                crack.position.x = this.radius * 1.01 * Math.sin(phi) * Math.cos(theta);
+                crack.position.y = this.radius * 1.01 * Math.sin(phi) * Math.sin(theta);
+                crack.position.z = this.radius * 1.01 * Math.cos(phi);
+                
+                // Orient along the surface
+                crack.lookAt(crack.position.clone().multiplyScalar(2));
+                
+                // Random rotation around the normal
+                crack.rotateOnAxis(new THREE.Vector3(0, 0, 1), Math.random() * Math.PI * 2);
+                
+                // Add to the mesh
+                this.mesh.add(crack);
+            }
+        } catch (error) {
+            console.error("Error adding surface cracks:", error);
+        }
+    }
+
+    // Add storm systems to gas giants
+    addStorms() {
+        try {
+            // Add 2-4 storm systems
+            const stormCount = 2 + Math.floor(Math.random() * 3);
+            
+            for (let i = 0; i < stormCount; i++) {
+                // Create a storm (oval shape)
+                const stormSize = this.radius * (0.1 + Math.random() * 0.2);
+                const stormGeometry = new THREE.SphereGeometry(stormSize, 16, 16);
+                
+                // Different colors for different storms
+                const stormColors = [
+                    0xff3300, // Red storm
+                    0xffaa00, // Orange storm
+                    0xffffff, // White storm
+                    0x88aaff  // Blue storm
+                ];
+                
+                const stormMaterial = new THREE.MeshStandardMaterial({
+                    color: stormColors[i % stormColors.length],
+                    roughness: 0.7,
+                    metalness: 0.2,
+                    transparent: true,
+                    opacity: 0.9
+                });
+                
+                const storm = new THREE.Mesh(stormGeometry, stormMaterial);
+                
+                // Flatten the storm
+                storm.scale.y = 0.3;
+                
+                // Position on the planet (mostly near equator)
+                const theta = Math.random() * Math.PI * 2;
+                const phi = (Math.PI / 2) + (Math.random() * 0.6 - 0.3); // Near equator
+                
+                storm.position.x = this.radius * 1.02 * Math.sin(phi) * Math.cos(theta);
+                storm.position.y = this.radius * 1.02 * Math.sin(phi) * Math.sin(theta);
+                storm.position.z = this.radius * 1.02 * Math.cos(phi);
+                
+                // Orient to face outward
+                storm.lookAt(storm.position.clone().multiplyScalar(2));
+                
+                // Add to the mesh
+                this.mesh.add(storm);
+                
+                // Store for animation if needed
+                if (!this.storms) this.storms = [];
+                this.storms.push({
+                    mesh: storm,
+                    rotationSpeed: (Math.random() * 2 - 1) * 0.001 // Random speed and direction
+                });
+            }
+        } catch (error) {
+            console.error("Error adding storms:", error);
+        }
+    }
+
+    // Add crystalline structures to ice planets
+    addCrystallineStructures() {
+        try {
+            // Add 5-10 crystal formations
+            const crystalCount = 5 + Math.floor(Math.random() * 6);
+            
+            for (let i = 0; i < crystalCount; i++) {
+                // Create a crystal group
+                const crystalGroup = new THREE.Group();
+                
+                // Add 3-6 crystal spikes per formation
+                const spikeCount = 3 + Math.floor(Math.random() * 4);
+                
+                for (let j = 0; j < spikeCount; j++) {
+                    const height = this.radius * (0.1 + Math.random() * 0.15);
+                    const width = height * 0.2;
+                    
+                    const crystalGeometry = new THREE.ConeGeometry(width, height, 5);
+                    const crystalMaterial = new THREE.MeshStandardMaterial({
+                        color: 0xaaddff,
+                        roughness: 0.2,
+                        metalness: 0.8,
+                        transparent: true,
+                        opacity: 0.8,
+                        emissive: 0x2244aa,
+                        emissiveIntensity: 0.3
+                    });
+                    
+                    const crystal = new THREE.Mesh(crystalGeometry, crystalMaterial);
+                    
+                    // Position within the group
+                    const angle = (j / spikeCount) * Math.PI * 2;
+                    crystal.position.x = Math.sin(angle) * width * 2;
+                    crystal.position.z = Math.cos(angle) * width * 2;
+                    
+                    // Random height and tilt
+                    crystal.position.y = Math.random() * width;
+                    crystal.rotation.x = (Math.random() * 0.5 - 0.25) * Math.PI;
+                    crystal.rotation.z = (Math.random() * 0.5 - 0.25) * Math.PI;
+                    
+                    crystalGroup.add(crystal);
+                }
+                
+                // Position the crystal group on the planet surface
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI;
+                
+                crystalGroup.position.x = this.radius * 1.01 * Math.sin(phi) * Math.cos(theta);
+                crystalGroup.position.y = this.radius * 1.01 * Math.sin(phi) * Math.sin(theta);
+                crystalGroup.position.z = this.radius * 1.01 * Math.cos(phi);
+                
+                // Orient to face outward
+                crystalGroup.lookAt(crystalGroup.position.clone().multiplyScalar(2));
+                
+                // Add to the mesh
+                this.mesh.add(crystalGroup);
+                
+                // Add a subtle light to the crystal formation
+                const crystalLight = new THREE.PointLight(0x88aaff, 0.5, this.radius * 0.5);
+                crystalLight.position.set(0, height * 0.5, 0);
+                crystalGroup.add(crystalLight);
+            }
+        } catch (error) {
+            console.error("Error adding crystalline structures:", error);
+        }
+    }
+
+    // Add lunar maria (dark patches) to moons
+    addLunarMaria() {
+        try {
+            // Add 3-7 maria
+            const mariaCount = 3 + Math.floor(Math.random() * 5);
+            
+            for (let i = 0; i < mariaCount; i++) {
+                // Create a maria (dark patch)
+                const size = this.radius * (0.2 + Math.random() * 0.3);
+                
+                const mariaGeometry = new THREE.CircleGeometry(size, 24);
+                const mariaMaterial = new THREE.MeshStandardMaterial({
+                    color: 0x333333,
+                    roughness: 0.9,
+                    metalness: 0.1,
+                    side: THREE.DoubleSide
+                });
+                
+                const maria = new THREE.Mesh(mariaGeometry, mariaMaterial);
+                
+                // Position randomly on the surface
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI;
+                
+                maria.position.x = this.radius * 1.01 * Math.sin(phi) * Math.cos(theta);
+                maria.position.y = this.radius * 1.01 * Math.sin(phi) * Math.sin(theta);
+                maria.position.z = this.radius * 1.01 * Math.cos(phi);
+                
+                // Orient to face outward
+                maria.lookAt(maria.position.clone().multiplyScalar(2));
+                
+                // Add to the mesh
+                this.mesh.add(maria);
+            }
+        } catch (error) {
+            console.error("Error adding lunar maria:", error);
+        }
+    }
+
+    // Add ocean glow to Earth-like planets
+    addOceanGlow() {
+        try {
+            // Create a slightly larger sphere for the ocean glow
+            const oceanGeometry = new THREE.SphereGeometry(this.radius * 1.01, 32, 32);
+            const oceanMaterial = new THREE.MeshStandardMaterial({
+                color: 0x0066aa,
+                roughness: 0.5,
+                metalness: 0.8,
+                transparent: true,
+                opacity: 0.3,
+                emissive: 0x003366,
+                emissiveIntensity: 0.2
+            });
+            
+            const ocean = new THREE.Mesh(oceanGeometry, oceanMaterial);
+            
+            // Add to the mesh
+            this.mesh.add(ocean);
+            
+            // Store for animation if needed
+            this.ocean = ocean;
+        } catch (error) {
+            console.error("Error adding ocean glow:", error);
+        }
+    }
+
+    // Add ambient occlusion effect to enhance depth perception
+    addAmbientOcclusion() {
+        try {
+            // Skip for certain planet types
+            if (this.textureType === 'sun') return;
+            
+            // Create a slightly larger sphere with a dark material
+            const aoGeometry = new THREE.SphereGeometry(this.radius * 1.01, 16, 16);
+            const aoMaterial = new THREE.MeshBasicMaterial({
+                color: 0x000000,
+                transparent: true,
+                opacity: 0.2,
+                side: THREE.BackSide,
+                blending: THREE.MultiplyBlending
+            });
+            
+            const ao = new THREE.Mesh(aoGeometry, aoMaterial);
+            
+            // Add to the mesh
+            this.mesh.add(ao);
+        } catch (error) {
+            console.error("Error adding ambient occlusion:", error);
+        }
+    }
+
+    // Add this new method to create surface features
     addSolarFeatures() {
         try {
             // Add solar flares
@@ -839,7 +1307,7 @@ export class Planet extends THREE.Object3D {
         }
     }
 
-    addContinents() {
+    addContinents(density) {
         try {
             // Add 3-7 continent-like bumps
             const continentCount = 3 + Math.floor(Math.random() * 5);
@@ -1148,6 +1616,95 @@ export class Planet extends THREE.Object3D {
             }
         } catch (error) {
             console.error("Error updating cloud bands:", error);
+        }
+    }
+
+    // Add this new method to create a light source for the planet
+    addLightSource(color, distance, intensity) {
+        try {
+            // Skip for low detail mode
+            if (this.lowDetail) return;
+            
+            // Create a point light
+            const light = new THREE.PointLight(color, intensity, distance);
+            
+            // Position at the center of the planet
+            light.position.set(0, 0, 0);
+            
+            // Add to the mesh
+            this.mesh.add(light);
+            
+            // Store for later reference
+            this.light = light;
+            
+            console.log(`Added light source to ${this.name || 'planet'}`);
+        } catch (error) {
+            console.error("Error adding light source to planet:", error);
+        }
+    }
+
+    // Add this new method to update corona layers
+    updateCoronaLayers(delta) {
+        try {
+            // Skip if no corona layers
+            if (!this.coronaLayers) return;
+            
+            // Update each corona layer
+            this.coronaLayers.forEach(layer => {
+                // Calculate pulse factor
+                const time = Date.now() * layer.pulseSpeed;
+                const pulseFactor = 1 + 0.1 * Math.sin(time + layer.pulsePhase);
+                
+                // Apply to scale
+                layer.mesh.scale.set(pulseFactor, pulseFactor, pulseFactor);
+                
+                // Slowly rotate
+                layer.mesh.rotation.y += 0.0001 * delta;
+                layer.mesh.rotation.z += 0.00005 * delta;
+            });
+        } catch (error) {
+            console.error("Error updating corona layers:", error);
+        }
+    }
+    
+    // Add this new method to update storms
+    updateStorms(delta) {
+        try {
+            // Skip if no storms
+            if (!this.storms) return;
+            
+            // Update each storm
+            this.storms.forEach(storm => {
+                // Rotate the storm
+                storm.mesh.rotation.z += storm.rotationSpeed * delta;
+                
+                // Pulse the storm slightly
+                const time = Date.now() * 0.001;
+                const pulseFactor = 1 + 0.05 * Math.sin(time);
+                storm.mesh.scale.x = pulseFactor;
+                storm.mesh.scale.z = pulseFactor;
+            });
+        } catch (error) {
+            console.error("Error updating storms:", error);
+        }
+    }
+    
+    // Add this new method to update ocean glow
+    updateOceanGlow(delta) {
+        try {
+            // Skip if no ocean
+            if (!this.ocean) return;
+            
+            // Subtle pulsing effect
+            const time = Date.now() * 0.0005;
+            const pulseFactor = 1 + 0.02 * Math.sin(time);
+            
+            this.ocean.scale.set(pulseFactor, pulseFactor, pulseFactor);
+            
+            // Slowly rotate the ocean layer independently
+            this.ocean.rotation.y += 0.00005 * delta;
+        } catch (error) {
+            console.error("Error updating ocean glow:", error);
         }
     }
 } 
